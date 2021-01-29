@@ -5,7 +5,7 @@ import scala.xml.XML
 object SiqPrinterUtility extends App {
 
   val source = XML.loadFile(args(0))
-  val parsed = SiqXmlContentParser.parse(source)
+  val parsed = SiqXmlContentParser.convert(source)
 
   pprint(parsed)
 

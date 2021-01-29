@@ -1,15 +1,15 @@
 package zodo.jeopardy.siq
 
-import com.jeopardy.siq.xml
 import utest._
 import zodo.jeopardy.model.PackModel.{Answers, Fragment, Pack, Question, Round, RoundType, Theme}
 
 object SiqXmlContentParserTest extends TestSuite {
+
   override val tests = Tests {
     test("questions") {
       test("all in one") {
-        val source = scalaxb.fromXML[xml.Question] {
-          <question price="42" xmlns="http://vladimirkhil.com/ygpackage3.0.xsd">
+        val source =
+          <question price="42">
               <scenario>
                 <atom>question 1</atom>
                 <atom type="text">question 2</atom>
@@ -28,7 +28,6 @@ object SiqXmlContentParserTest extends TestSuite {
                 <answer>wrong 1</answer>
               </wrong>
             </question>
-        }
 
         val result = SiqXmlContentParser.mapQuestion(source)
         val expected = Question(
@@ -54,8 +53,8 @@ object SiqXmlContentParserTest extends TestSuite {
       }
 
       test("without wrong") {
-        val source = scalaxb.fromXML[xml.Question] {
-          <question price="42" xmlns="http://vladimirkhil.com/ygpackage3.0.xsd">
+        val source = {
+          <question price="42">
             <scenario>
               <atom>question 1</atom>
             </scenario>
@@ -82,7 +81,7 @@ object SiqXmlContentParserTest extends TestSuite {
 
     test("full file") {
       val source =
-        <package name="pack name" version="4" id="762175e4-2c59-4f3f-a816-d0bc1269926d" date="06.06.2020" difficulty="6" xmlns="http://vladimirkhil.com/ygpackage3.0.xsd">
+        <package name="pack name" version="4" id="762175e4-2c59-4f3f-a816-d0bc1269926d" date="06.06.2020" difficulty="6">
             <info>
               <authors>
                 <author>ignored</author>
@@ -144,7 +143,7 @@ object SiqXmlContentParserTest extends TestSuite {
             </rounds>
           </package>
 
-      val result = SiqXmlContentParser.parse(source)
+      val result = SiqXmlContentParser.convert(source)
 
       assertMatch(result) {
         case Pack(

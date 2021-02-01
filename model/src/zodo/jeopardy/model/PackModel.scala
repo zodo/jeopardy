@@ -1,10 +1,16 @@
 package zodo.jeopardy.model
 
+import java.util.UUID
+
 object PackModel {
+
+  trait WithId {
+    val id: String = UUID.randomUUID().toString()
+  }
 
   case class Pack(rounds: Seq[Round])
 
-  case class Round(name: String, themes: Seq[Theme], typ: RoundType)
+  case class Round(name: String, themes: Seq[Theme], typ: RoundType) extends WithId
 
   sealed trait RoundType
   object RoundType {
@@ -12,9 +18,9 @@ object PackModel {
     case object Final extends RoundType
   }
 
-  case class Theme(name: String, questions: Seq[Question])
+  case class Theme(name: String, questions: Seq[Question]) extends WithId
 
-  case class Question(fragments: Seq[Fragment], answers: Answers, price: Long)
+  case class Question(fragments: Seq[Fragment], answers: Answers, price: Long) extends WithId
 
   case class Answers(
     correct: Seq[String],

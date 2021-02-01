@@ -34,6 +34,8 @@ object Entrypoint extends SimpleAkkaHttpKorolevApp {
   import levsha.dsl._
   import html._
 
+  val uploader = new Uploader
+
   def service: AkkaHttpService = akkaHttpService {
     KorolevServiceConfig[Task, AppState, Any](
       stateLoader = StateLoader.default(AppState.BeforeStart),
@@ -52,7 +54,7 @@ object Entrypoint extends SimpleAkkaHttpKorolevApp {
                 style := "width: 1000px; margin: 0 auto",
                 state match {
                   case AppState.BeforeStart =>
-                    Uploader.component(effect)(()) { (access, event) =>
+                    uploader(()) { (access, event) =>
                       event match {
                         case FileProcessed(pack) => access.transition(_ => AppState.ShowInfo(pack))
                       }

@@ -1,43 +1,31 @@
 package zodo.jeopardy.client
 
-import korolev.Router
-import korolev.web.PathAndQuery._
 import korolev.Context
 import korolev.akka._
+import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
-import korolev.zio.taskEffectInstance
-import zio.{Runtime, Task, ZIO}
+import korolev.zio.zioEffectInstance
+import zio.Runtime
+import zodo.jeopardy.client.AppEvent.FileProcessed
+import zodo.jeopardy.model.PackModel
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.reflect.internal.util.FileUtils
-import zio.IO
-import scala.xml.XML
-import zodo.jeopardy.siq.SiqXmlContentParser
-import zodo.jeopardy.model.PackModel
-import zio.UIO
-import zodo.jeopardy.model.PackModel.Fragment.Audio
-import zodo.jeopardy.client.Uploader
-
-import scala.concurrent.duration.DurationInt
-import korolev.Component
-import zodo.jeopardy.client.AppEvent.FileProcessed
 
 object Entrypoint extends SimpleAkkaHttpKorolevApp {
   implicit val runtime = Runtime.default
-  implicit val effect = taskEffectInstance(runtime)
+  implicit val effect: Effect[EnvTask] = zioEffectInstance(runtime)((e: Throwable) => e)((e: Throwable) => e)
 
-  val ctx = Context[Task, AppState, Any]
+  val ctx = Context[EnvTask, AppState, Any]
 
   import ctx._
-
   import levsha.dsl._
   import html._
 
   val uploader = new Uploader
 
   def service: AkkaHttpService = akkaHttpService {
-    KorolevServiceConfig[Task, AppState, Any](
+    KorolevServiceConfig[EnvTask, AppState, Any](
       stateLoader = StateLoader.default(AppState.BeforeStart),
       document = state =>
         optimize {
@@ -45,6 +33,11 @@ object Entrypoint extends SimpleAkkaHttpKorolevApp {
             head(
               link(
                 href := "https://cdn.jsdelivr.net/npm/picnic@6/picnic.min.css",
+                rel := "stylesheet",
+                `type` := "text/css"
+              ),
+              link(
+                href := "/static/main.css",
                 rel := "stylesheet",
                 `type` := "text/css"
               )
@@ -56,7 +49,9 @@ object Entrypoint extends SimpleAkkaHttpKorolevApp {
                   case AppState.BeforeStart =>
                     uploader(()) { (access, event) =>
                       event match {
-                        case FileProcessed(pack) => access.transition(_ => AppState.ShowInfo(pack))
+                        case FileProcessed(hash, pack) =>
+                          println(s"pack hash: $hash")
+                          access.transition(_ => AppState.ShowInfo(pack))
                       }
                     }
                   case AppState.ShowInfo(pack) =>

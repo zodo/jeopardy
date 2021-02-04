@@ -29,7 +29,6 @@ object core extends BaseScalaModule {
     ivy"dev.zio::zio-actors:0.0.9",
     ivy"dev.zio::zio-nio:1.0.0-RC10",
     ivy"net.lingala.zip4j:zip4j:2.6.4"
-
   )
 
   override def moduleDeps = Seq(`siq-parser`, model)
@@ -42,8 +41,13 @@ object client extends BaseScalaModule {
   override def ivyDeps = Agg(
     ivy"dev.zio::zio:1.0.4",
     ivy"dev.zio::zio-actors:0.0.9",
+    ivy"dev.zio::zio-interop-cats:2.2.0.1",
     ivy"org.fomkin::korolev-akka:0.17-M3",
-    ivy"org.fomkin::korolev-zio:0.17-M3"
+    ivy"org.fomkin::korolev-zio:0.17-M3",
+    ivy"org.fomkin::korolev-http4s:0.17-M3",
+    ivy"org.http4s::http4s-server:0.21.18",
+    ivy"org.http4s::http4s-dsl:0.21.18",
+    ivy"org.http4s::http4s-blaze-server:0.21.18"
   )
 
   override def moduleDeps = Seq(core, `siq-parser`)

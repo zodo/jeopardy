@@ -1,15 +1,15 @@
 package zodo.jeopardy.client
 
 import korolev.effect.Effect
-import korolev.{Context, Extension, Qsid}
+import korolev.{Context, Extension}
 import zio._
 import zio.actors.Actor.Stateful
 import zio.actors._
 import zio.console.{Console, putStrLn}
 
-final class EventsMediator(implicit eff: Effect[EnvTask]) extends Extension[EnvTask, AppState, ClientEvent] {
+final class EventsMediator(implicit eff: Effect[AppTask]) extends Extension[AppTask, AppState, ClientEvent] {
 
-  type Access = Context.BaseAccess[EnvTask, AppState, ClientEvent]
+  type Access = Context.BaseAccess[AppTask, AppState, ClientEvent]
 
   val proxy = new Stateful[Console, Unit, ParametrizedClientEvent] {
 
@@ -20,7 +20,7 @@ final class EventsMediator(implicit eff: Effect[EnvTask]) extends Extension[EnvT
     ): RIO[Console, (Unit, A)] =
       msg match {
         case s: ClientEvent =>
-          putStrLn(s"\t in actor $s").as((), ())
+          putStrLn(s"\t in actor $s").as((), ().asInstanceOf[A])
       }
   }
 
@@ -33,21 +33,17 @@ final class EventsMediator(implicit eff: Effect[EnvTask]) extends Extension[EnvT
     } yield response
   }
 
-  def setup(access: Access): EnvTask[Extension.Handlers[EnvTask, AppState, ClientEvent]] = {
+  def setup(access: Access): AppTask[Extension.Handlers[AppTask, AppState, ClientEvent]] = {
     val value = for {
       session <- access.sessionId
       actorSystem <- DefaultActorSystem.system
       _ <- putStrLn(s"Using actor system: $actorSystem")
-      actor <- actorSystem.make("unique-proxy", actors.Supervisor.none, (), proxy)
-      _ <- sendMessage(actor, ClientEvent.EnterGame("test1", "test2"))
-      _ <- sendMessage(actor, ClientEvent.EnterGame("test3", "test4"))
-    } yield Extension.Handlers[EnvTask, AppState, ClientEvent](
+      actor <- actorSystem.make(s"proxy-$session", actors.Supervisor.none, (), proxy)
+    } yield Extension.Handlers[AppTask, AppState, ClientEvent](
       onDestroy = () => actor.stop.unit,
       onMessage = clientEvent => {
         for {
           _ <- sendMessage(actor, clientEvent)
-          mailbox <- actor.stop
-          _ <- putStrLn(s"Mailbox: $mailbox")
         } yield ()
 
       }

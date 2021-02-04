@@ -14,8 +14,8 @@ import zodo.jeopardy.core.FileOperations
 import java.nio.file.Paths
 import scala.util.Try
 
-class Uploader(implicit eff: Effect[EnvTask])
-    extends Component[EnvTask, State, Unit, ClientEvent](State(Waiting, None)) {
+class Uploader(implicit eff: Effect[AppTask])
+    extends Component[AppTask, State, Unit, ClientEvent](State(Waiting, None)) {
 
   import context._
   import levsha.dsl._
@@ -58,7 +58,7 @@ class Uploader(implicit eff: Effect[EnvTask])
 
   private def onUploadClick(access: Access) = {
 
-    def fetchFile(handler: FileHandler, data: korolev.effect.Stream[EnvTask, Bytes]) = {
+    def fetchFile(handler: FileHandler, data: korolev.effect.Stream[AppTask, Bytes]) = {
       val size = handler.size
       val path = Paths.get(s"/tmp/korolev/${handler.fileName}")
       data

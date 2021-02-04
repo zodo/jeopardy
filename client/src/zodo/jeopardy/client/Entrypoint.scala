@@ -1,54 +1,62 @@
 package zodo.jeopardy.client
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import korolev.akka._
-import korolev.effect.Effect
-import korolev.zio.zioEffectInstance
-import zio.{Has, Runtime}
+import cats.effect.{ExitCode => CatsExitCode, _}
+import korolev.http4s
 import korolev.state.javaSerialization._
+import korolev.zio.zioEffectInstance
+import org.http4s.HttpRoutes
+import org.http4s.implicits._
+import org.http4s.server.Router
+import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.server.staticcontent.{FileService, fileService}
 import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.console.Console
-import zio.internal.Platform
-import zio.random.Random
-import zio.system.System
+import zio.interop.catz._
+import zio.{App, RIO, URIO, ZEnv, ZIO, ExitCode => ZExitCode}
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 object Entrypoint extends App {
 
-  val runtime = Runtime(
-    Has.allOf[
-      Clock.Service,
-      Console.Service,
-      System.Service,
-      Random.Service,
-      Blocking.Service,
-      DefaultActorSystem.Service
-    ](
-      Clock.Service.live,
-      Console.Service.live,
-      System.Service.live,
-      Random.Service.live,
-      Blocking.Service.live,
-      DefaultActorSystem.Service.live
-    ),
-    Platform.default
-  )
-  implicit val effect: Effect[EnvTask] = zioEffectInstance(runtime)((e: Throwable) => e)((e: Throwable) => e)
-  implicit val actorSystem: ActorSystem = ActorSystem()
+  private val fileRouteM: AppTask[HttpRoutes[AppTask]] = RIO.concurrentEffectWith {
+    implicit ce: ConcurrentEffect[AppTask] =>
+      for {
+        blockingExecutor <- ZIO.access[Blocking](_.get.blockingExecutor)
+        blocker = Blocker.liftExecutionContext(blockingExecutor.asEC)
+      } yield fileService(FileService.Config("/tmp/korolev", blocker))
+  }
 
-  import akka.http.scaladsl.server.Directives._
+  private val appRouteM: AppTask[HttpRoutes[AppTask]] = ZIO.runtime[AppEnv].flatMap { runtime =>
+    implicit val ec: ExecutionContext = runtime.platform.executor.asEC
+    implicit val effect = zioEffectInstance[AppEnv, Throwable](runtime)(identity)(identity)
+    val service = new KorolevService()
+    RIO.concurrentEffectWith { implicit ce: ConcurrentEffect[AppTask] =>
+      ZIO(http4s.http4sKorolevService(service.config))
+    }
+  }
 
-  val korolevService = akkaHttpService(new KorolevService().config)
+  private val program = for {
+    fileRoute <- fileRouteM
+    appRoute <- appRouteM
 
-  val route = concat(
-    pathPrefix("media") {
-      getFromBrowseableDirectory("/tmp/korolev")
-    },
-    korolevService(AkkaHttpServerConfig())
-  )
+    httpApp = Router[AppTask](
+      "/" -> appRoute,
+      "/media" -> fileRoute
+    ).orNotFound
 
-  Http().newServerAt("0.0.0.0", 8080).bind(route)
+    _ <- ZIO.runtime[AppEnv].flatMap { implicit rts =>
+      BlazeServerBuilder
+        .apply[AppTask](rts.platform.executor.asEC)
+        .bindHttp(8080, "0.0.0.0")
+        .withHttpApp(httpApp)
+        .serve
+        .compile[AppTask, AppTask, CatsExitCode]
+        .drain
+    }
+  } yield ()
+
+  override def run(args: List[String]): URIO[ZEnv, ZExitCode] = {
+    val env = ZEnv.live ++ DefaultActorSystem.live
+
+    program.provideLayer(env).exitCode
+  }
 }

@@ -1,20 +1,18 @@
 package zodo.jeopardy.client
 
-import zio.console._
 import korolev.Context
 import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
-import zio.ZIO
-import zodo.jeopardy.client.AppState.{GameInfo, InAnswer, InQuestion, InRound, PlayerInfo, PlayerState}
+import zodo.jeopardy.client.AppState._
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
 
 import scala.concurrent.ExecutionContext
 
-class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
+class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
 
-  val ctx = Context[EnvTask, AppState, ClientEvent]
+  val ctx = Context[AppTask, AppState, ClientEvent]
 
   import ctx._
   import levsha.dsl._
@@ -25,7 +23,7 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
   private val nameInputId = elementId()
   private val gameInputId = elementId()
 
-  val config = KorolevServiceConfig[EnvTask, AppState, ClientEvent](
+  val config = KorolevServiceConfig[AppTask, AppState, ClientEvent](
     stateLoader = StateLoader.default(AppState.Anonymous),
     extensions = List(eventsMediator),
     document = state =>

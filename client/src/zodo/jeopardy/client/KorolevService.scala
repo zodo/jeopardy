@@ -5,8 +5,8 @@ import korolev.Context
 import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
-import zodo.jeopardy.client.AppEvent.FileProcessed
-import zodo.jeopardy.client.AppState.{GameInfo, InAnswer, InQuestion, InRound, PlayerInfo}
+import zio.ZIO
+import zodo.jeopardy.client.AppState.{GameInfo, InAnswer, InQuestion, InRound, PlayerInfo, PlayerState}
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
 
@@ -14,16 +14,20 @@ import scala.concurrent.ExecutionContext
 
 class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
 
-  val ctx = Context[EnvTask, AppState, Any]
+  val ctx = Context[EnvTask, AppState, ClientEvent]
 
   import ctx._
   import levsha.dsl._
   import html._
 
+  private val eventsMediator = new EventsMediator
   private val uploader = new Uploader
+  private val nameInputId = elementId()
+  private val gameInputId = elementId()
 
-  val config = KorolevServiceConfig[EnvTask, AppState, Any](
+  val config = KorolevServiceConfig[EnvTask, AppState, ClientEvent](
     stateLoader = StateLoader.default(AppState.Anonymous),
+    extensions = List(eventsMediator),
     document = state =>
       optimize {
         Html(
@@ -44,12 +48,18 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
               style := "width: 1000px; margin: 0 auto",
               state match {
                 case AppState.Anonymous =>
-                  uploader(()) { (access, event) =>
-                    event match {
-                      case FileProcessed(hash, pack) =>
-                        putStrLn(s"File with $hash uploaded succesfully")
-                    }
-                  }
+                  form(
+                    input(nameInputId, `type` := "text", placeholder := "Your name"),
+                    input(gameInputId, `type` := "text", placeholder := "Game ID"),
+                    button("Enter lobby"),
+                    event("submit")(access =>
+                      for {
+                        name <- access.valueOf(nameInputId)
+                        gameId <- access.valueOf(gameInputId)
+                        _ <- access.publish(ClientEvent.EnterGame(name, gameId))
+                      } yield println("clicked")
+                    )
+                  )
                 case AppState.InGame(gi @ GameInfo(gameId, hash, players), gameState) =>
                   div(
                     h2(s"In game $gameId with pack $hash"),
@@ -61,10 +71,10 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
                     },
                     input(
                       `type` := "text",
-                      if (!gi.me.givingAnswer) disabled else void
+                      if (gi.me.state != PlayerState.Answer) disabled else void
                     ),
                     button(
-                      if (!gi.me.givingAnswer) disabled else void,
+                      if (gi.me.state != PlayerState.Answer) disabled else void,
                       "Send"
                     )
                   )
@@ -76,7 +86,7 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
   )
 
   private def renderPlayer(info: PlayerInfo) = {
-    val PlayerInfo(id, name, score, givingAnswer, me) = info
+    val PlayerInfo(id, name, score, state, me) = info
 
     div(
       ul(
@@ -84,7 +94,7 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
         li(s"Id - $id"),
         li(s"Name - $name"),
         li(s"Score - $score"),
-        li(s"Giving answer - $givingAnswer")
+        li(s"State - $state")
       )
     )
   }
@@ -103,7 +113,8 @@ class KorolevService(implicit eff: Effect[EnvTask], ec: ExecutionContext) {
                 if (takenQuestions.contains(question.id))
                   color @= "gray"
                 else void,
-                question.price.toString()
+                question.price.toString(),
+                event("click")(_.publish(ClientEvent.ChooseQuestion(question.id)))
               )
             )
           )

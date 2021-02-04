@@ -22,11 +22,19 @@ object AppState {
     def me: PlayerInfo = players.filter(_.me).head
   }
 
+  sealed trait PlayerState
+
+  object PlayerState {
+    case object Idle extends PlayerState
+    case object Choose extends PlayerState
+    case object Answer extends PlayerState
+  }
+
   case class PlayerInfo(
     id: String,
     name: String,
     score: String,
-    givingAnswer: Boolean,
+    state: PlayerState,
     me: Boolean
   )
 }

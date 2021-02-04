@@ -14,7 +14,8 @@ import zodo.jeopardy.core.FileOperations
 import java.nio.file.Paths
 import scala.util.Try
 
-class Uploader(implicit eff: Effect[EnvTask]) extends Component[EnvTask, State, Unit, AppEvent](State(Waiting, None)) {
+class Uploader(implicit eff: Effect[EnvTask])
+    extends Component[EnvTask, State, Unit, ClientEvent](State(Waiting, None)) {
 
   import context._
   import levsha.dsl._
@@ -80,7 +81,7 @@ class Uploader(implicit eff: Effect[EnvTask]) extends Component[EnvTask, State, 
 
       _ <- access.transition(_.copy(stage = Unpacking, percentage = None))
       fileInfo <- FileOperations.unpackFile(downloadedFilePath)
-      _ <- access.publish(AppEvent.FileProcessed(fileInfo.hash, fileInfo.pack))
+      _ <- access.publish(ClientEvent.UploadFile(fileInfo.hash, fileInfo.pack))
     } yield ())
       .catchAll(err => access.transition(_ => State(UnpackError(err.toString), None)))
   }

@@ -28,10 +28,12 @@ object Entrypoint extends App {
   private val appRouteM: AppTask[HttpRoutes[AppTask]] = ZIO.runtime[AppEnv].flatMap { runtime =>
     implicit val ec: ExecutionContext = runtime.platform.executor.asEC
     implicit val effect = zioEffectInstance[AppEnv, Throwable](runtime)(identity)(identity)
-    val service = new KorolevService()
-    RIO.concurrentEffectWith { implicit ce: ConcurrentEffect[AppTask] =>
-      ZIO(http4s.http4sKorolevService(service.config))
-    }
+    for {
+      config <- new KorolevService().configM
+      route <- RIO.concurrentEffectWith { implicit ce: ConcurrentEffect[AppTask] =>
+        ZIO(http4s.http4sKorolevService(config))
+      }
+    } yield route
   }
 
   private val program = for {

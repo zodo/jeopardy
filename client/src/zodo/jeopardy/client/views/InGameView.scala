@@ -3,7 +3,7 @@ package zodo.jeopardy.client.views
 import korolev.Context
 import korolev.effect.Effect
 import ViewState._
-import zodo.jeopardy.actors.GameActor.State.Stage.{InQuestion, InRound, WaitingForStart}
+import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.model.PackModel
@@ -15,47 +15,49 @@ class InGameView(val ctx: Context.Scope[AppTask, RootState, InGame, ClientEvent]
   import levsha.dsl._
   import html._
 
-  def render(s: ViewState.InGame) = s match {
-    case ViewState.InGame(gameId, hash, players, gameState) =>
+  def render(s: ViewState.InGame): DocumentNode = s match {
+    case ViewState.InGame(gameId, hash, players, stage) =>
       optimize {
         div(
-          h2(s"In game $gameId with pack $hash"),
+          h2(s"In game '$gameId' with pack $hash"),
           players
             .map(renderPlayer),
-          gameState match {
-            case WaitingForStart => renderWaitingForStart(gameId)
-            case s: InRound      => renderInRound(s.round, s.takenQuestions)
-            case s: InQuestion   => renderInQuestion(hash, s.question)
+          stage match {
+            case WaitingForStart     => renderWaitingForStart
+            case s: InRound          => renderInRound(s.round, s.takenQuestions)
+            case s: InQuestion       => renderInQuestion(hash, s.question)
+            case s: InAwaitingAnswer => renderInQuestion(hash, s.question)
           }
         )
       }
   }
 
   private def renderPlayer(info: PlayerInfo) = {
-    val PlayerInfo(id, name, score, state, me) = info
+    val PlayerInfo(id, name, score, state, me, buttonPressed) = info
 
     div(
       ul(
-        h3(s"Player${if (me) "(its me!)" else ""}"),
+        h3(
+          if (buttonPressed) backgroundColor @= "red" else void,
+          s"$name${if (me) "(its me!)" else ""} - $state"
+        ),
         li(s"Id - $id"),
-        li(s"Name - $name"),
-        li(s"Score - $score"),
-        li(s"State - $state")
+        li(s"Score - $score")
       )
     )
   }
 
-  private def renderWaitingForStart(gameId: String) = {
+  private def renderWaitingForStart: DocumentNode = {
     div(
       h2("Waiting for start"),
       button(
         "start now!",
-        event("click")(_.publish(ClientEvent.StartGame(gameId)))
+        event("click")(_.publish(ClientEvent.StartGame))
       )
     )
   }
 
-  private def renderInRound(round: PackModel.Round, takenQuestions: Set[String]) = {
+  private def renderInRound(round: PackModel.Round, takenQuestions: Set[String]): DocumentNode = {
     div(
       h2(round.name),
       when(round.typ == PackModel.RoundType.Final)(span("Final!")),
@@ -78,22 +80,29 @@ class InGameView(val ctx: Context.Scope[AppTask, RootState, InGame, ClientEvent]
     )
   }
 
-  private def renderInQuestion(hash: String, question: PackModel.Question) = {
+  private def renderInQuestion(hash: String, question: PackModel.Question): DocumentNode = {
     div(
       h2("Question"),
-      ul(
-        question.fragments.map(fragment =>
-          li(
-            fragment match {
-              case Image(url) =>
-                img(
-                  width @= "600px",
-                  src := s"/media/$hash/Images/${url.drop(1)}"
-                )
-              case _ => fragment.toString
-            }
-          )
+      question.fragments.map(fragment =>
+        div(
+          fragment match {
+            case Image(url) =>
+              img(
+                width @= "600px",
+                src := s"/media/$hash/Images/${url.drop(1)}"
+              )
+            case _ => fragment.toString
+          }
         )
+      ),
+      button(
+        backgroundColor @= "green",
+        autofocus := "true",
+        "I know!",
+        event("click") { access =>
+          println("CLICK")
+          access.publish(ClientEvent.HitButton)
+        }
       )
     )
   }

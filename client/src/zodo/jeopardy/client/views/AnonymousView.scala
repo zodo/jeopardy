@@ -12,7 +12,7 @@ class AnonymousView(val ctx: Context.Scope[AppTask, RootState, ViewState, Client
 
   private val nameInputId = elementId()
 
-  def render() = optimize {
+  def render(): DocumentNode = optimize {
     form(
       input(nameInputId, `type` := "text", placeholder := "Your name"),
       button("OK"),

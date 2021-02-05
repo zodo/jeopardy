@@ -2,6 +2,7 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
+import levsha.Document
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.client.views.ViewState._
@@ -21,7 +22,7 @@ class RootView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent
     )
   )
 
-  def render(state: ViewState) = optimize {
+  def render(state: ViewState): DocumentNode = optimize {
     div(
       TagDef("main")(
         style := "width: 1000px; margin: 20px auto",

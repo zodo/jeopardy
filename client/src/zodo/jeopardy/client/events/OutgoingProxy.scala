@@ -4,7 +4,7 @@ import zio._
 import zio.actors._
 import zio.logging._
 import zodo.jeopardy.actors.GameActor.GameActorRef
-import zodo.jeopardy.actors.GameActor.State.Stage.WaitingForStart
+import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage.WaitingForStart
 import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
 import zodo.jeopardy.actors.LobbyActor.State.GameEntry
 import zodo.jeopardy.actors.{GameActor, LobbyActor}
@@ -55,7 +55,7 @@ object OutgoingProxy {
                       s"game-listener-$playerId",
                       actors.Supervisor.none,
                       newViewState,
-                      GameViewStateUpdater.handler(playerId, access)
+                      GameActorListener.handler(playerId, access)
                     )
                     _ <- access.transition(
                       _.complete(newViewState)
@@ -68,19 +68,14 @@ object OutgoingProxy {
                     .as(State(Some(playerName), None))
               }
             } yield newState
-          case (State(None, _), ClientEvent.EnterGame(gameId)) =>
-            log.error(s"OutgoingProxy ~ entering game $gameId without name").as(state)
-          case (_, ClientEvent.StartGame(gameId)) =>
-            for {
-              maybeEntry            <- lobby ? LobbyActor.Message.GetGameEntry(gameId)
-              GameEntry(_, _, game) <- ZIO.fromOption(maybeEntry).orElseFail(new Throwable("Game should exist"))
-              _                     <- game ! GameActor.InputMessage.StartGame
-            } yield state
+          case (State(_, Some(game)), ClientEvent.StartGame) =>
+            (game ! GameActor.InputMessage.StartGame).as(state)
           case (State(_, Some(game)), ClientEvent.ChooseQuestion(questionId)) =>
             (game ! GameActor.InputMessage.ChooseQuestion(playerId, questionId)).as(state)
-          case (State(_, _), _: ClientEvent.ChooseQuestion) =>
-            log.error(s"OutgoingProxy ~ choosing question without game").as(state)
-          case (_, ClientEvent.PressAnswerButton) => ???
+          case (State(_, Some(game)), ClientEvent.HitButton) =>
+            (game ! GameActor.InputMessage.HitButton(playerId)).as(state)
+          case s => log.error(s"unexpected transition OutgoingProxy <- $s").as(state)
+
         }
       }.map(s => s -> ().asInstanceOf[A])
     }

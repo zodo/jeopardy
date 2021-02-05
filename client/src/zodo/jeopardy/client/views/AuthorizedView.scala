@@ -18,7 +18,7 @@ class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, ViewState, Clien
   private val gameInputId = elementId()
   private val uploader = new Uploader
 
-  def render(s: ViewState.Authorized) = optimize {
+  def render(s: ViewState.Authorized): DocumentNode = optimize {
     div(
       h2(s"Hello ${s.name}!"),
       div(

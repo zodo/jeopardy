@@ -1,4 +1,4 @@
-package zodo.jeopardy.core
+package zodo.jeopardy.service
 
 import net.lingala.zip4j.ZipFile
 import zio._

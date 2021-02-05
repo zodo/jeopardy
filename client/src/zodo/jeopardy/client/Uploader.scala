@@ -9,7 +9,7 @@ import korolev.state.javaSerialization._
 import zio.Task
 import zodo.jeopardy.client.Uploader.State
 import zodo.jeopardy.client.Uploader.UploadStage.{UnpackError, Unpacking, Uploading, Waiting}
-import zodo.jeopardy.core.FileOperations
+import zodo.jeopardy.service.FileOperations
 
 import java.nio.file.Paths
 import scala.util.Try

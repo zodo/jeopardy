@@ -18,7 +18,7 @@ object model extends BaseScalaModule {
   object test extends Tests with MillTests
 }
 
-object core extends BaseScalaModule {
+object server extends BaseScalaModule {
 
   override def ivyDeps = Agg(
     ivy"dev.zio::zio:1.0.4",
@@ -48,7 +48,7 @@ object client extends BaseScalaModule {
     ivy"org.slf4j:slf4j-simple:1.7.30"
   )
 
-  override def moduleDeps = Seq(core)
+  override def moduleDeps = Seq(server)
 
   object test extends Tests with MillTests
 

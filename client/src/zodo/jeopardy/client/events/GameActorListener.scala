@@ -7,6 +7,7 @@ import zodo.jeopardy.actors.GameActor
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.{NewPlayerConnected, RoundStarted}
 import zodo.jeopardy.client.environment.AppEnv
 import zodo.jeopardy.client.views.RootState
+import zodo.jeopardy.client.views.ViewState.GameState.InRound
 import zodo.jeopardy.client.views.ViewState._
 
 object GameActorListener {
@@ -21,7 +22,7 @@ object GameActorListener {
       ): RIO[AppEnv, (Unit, A)] = msg match {
         case NewPlayerConnected(id, name) =>
           for {
-            _ <- log.debug(s"GameActorListener <- NewPlayerConnected($id, $name)")
+            _       <- log.debug(s"GameActorListener <- NewPlayerConnected($id, $name)")
             session <- access.sessionId
             _ <- access.maybeTransition { case r @ RootState(_, s @ InGame(GameInfo(_, _, players), _)) =>
               r.complete(

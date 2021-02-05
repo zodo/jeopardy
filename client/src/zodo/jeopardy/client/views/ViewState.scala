@@ -8,19 +8,18 @@ case class RootState(isLoading: Boolean, viewState: ViewState) {
 }
 
 sealed trait ViewState
-
 object ViewState {
   case object Anonymous extends ViewState
-
   case class Authorized(name: String, errorMessage: Option[String]) extends ViewState
-
   case class InGame(gameInfo: GameInfo, gameState: GameState) extends ViewState
 
   sealed trait GameState
-  case object WaitingForStart extends GameState
-  case class InRound(round: PackModel.Round, takenQuestions: Set[String]) extends GameState
-  case class InQuestion(question: PackModel.Question) extends GameState
-  case class InAnswer(answer: PackModel.Answers) extends GameState
+  object GameState {
+    case object WaitingForStart extends GameState
+    case class InRound(round: PackModel.Round, takenQuestions: Set[String]) extends GameState
+    case class InQuestion(question: PackModel.Question) extends GameState
+    case class InAnswer(answer: PackModel.Answers) extends GameState
+  }
 
   case class GameInfo(
     id: String,
@@ -31,7 +30,6 @@ object ViewState {
   }
 
   sealed trait PlayerState
-
   object PlayerState {
     case object Idle extends PlayerState
     case object Choose extends PlayerState

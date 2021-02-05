@@ -75,15 +75,15 @@ class Uploader(implicit eff: Effect[AppTask])
     }
 
     (for {
-      files <- access.downloadFilesAsStream(fileInput)
-      _ <- access.transition(_.copy(stage = Uploading, percentage = Some(0)))
+      files           <- access.downloadFilesAsStream(fileInput)
+      _               <- access.transition(_.copy(stage = Uploading, percentage = Some(0)))
       (handler, data) <- Task(files.head)
 
       downloadedFilePath <- fetchFile(handler, data)
 
-      _ <- access.transition(_.copy(stage = Unpacking, percentage = None))
+      _        <- access.transition(_.copy(stage = Unpacking, percentage = None))
       fileInfo <- FileOperations.unpackFile(downloadedFilePath)
-      _ <- access.publish(FileUploaded(fileInfo.hash, fileInfo.pack))
+      _        <- access.publish(FileUploaded(fileInfo.hash, fileInfo.pack))
     } yield ())
       .catchAll(err => access.transition(_ => State(UnpackError(err.toString), None)))
   }
@@ -96,7 +96,6 @@ object Uploader {
   case class State(stage: UploadStage, percentage: Option[Int])
 
   sealed trait UploadStage
-
   object UploadStage {
     case object Waiting extends UploadStage
     case object Uploading extends UploadStage

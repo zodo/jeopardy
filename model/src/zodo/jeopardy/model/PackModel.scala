@@ -13,7 +13,6 @@ object PackModel {
   case class Round(name: String, themes: Seq[Theme], typ: RoundType) extends WithId
 
   sealed trait RoundType
-
   object RoundType {
     case object Standard extends RoundType
     case object Final extends RoundType
@@ -30,7 +29,6 @@ object PackModel {
   )
 
   sealed trait Fragment
-
   object Fragment {
     case class Text(value: String) extends Fragment
     case class Image(url: String) extends Fragment

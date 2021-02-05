@@ -19,7 +19,7 @@ class AnonymousView(val ctx: Context.Scope[AppTask, RootState, ViewState, Client
       event("submit")(access =>
         for {
           name <- access.valueOf(nameInputId)
-          _ <- access.publish(ClientEvent.Introduce(name))
+          _    <- access.publish(ClientEvent.Introduce(name))
         } yield ()
       )
     )

@@ -1,6 +1,6 @@
-import mill._, scalalib._
+import mill._, scalalib._, scalafmt._
 
-trait BaseScalaModule extends ScalaModule {
+trait BaseScalaModule extends ScalaModule with ScalafmtModule {
   def scalaVersion = "2.13.4"
 }
 

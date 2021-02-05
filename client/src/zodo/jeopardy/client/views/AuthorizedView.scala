@@ -33,7 +33,7 @@ class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, ViewState, Clien
           event("submit")(access =>
             for {
               gameId <- access.valueOf(gameInputId)
-              _ <- access.publish(ClientEvent.EnterGame(gameId))
+              _      <- access.publish(ClientEvent.EnterGame(gameId))
             } yield ()
           )
         ),

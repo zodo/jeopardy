@@ -14,7 +14,6 @@ object LobbyActor {
   type LobbyActorRef = ActorRef[Message]
 
   sealed trait Message[+_]
-
   object Message {
     case class NewGame(hash: String, pack: PackModel.Pack) extends Message[(String, GameActorRef)]
     case class GetGame(id: String) extends Message[Option[GameActorRef]]
@@ -22,7 +21,6 @@ object LobbyActor {
   }
 
   case class State(games: Map[String, GameActorRef])
-
   object State {
     val init = State(Map())
   }
@@ -30,13 +28,12 @@ object LobbyActor {
   type Env = Random with Clock with Logging
 
   val handler = new Actor.Stateful[Env, State, Message] {
-
     override def receive[A](state: State, msg: Message[A], context: Context): RIO[Env, (State, A)] =
       msg match {
         case NewGame(hash, pack) =>
           for {
-            _ <- log.debug(s"LobbyActor <- NewGame($hash)")
-            id <- randomGameId
+            _         <- log.debug(s"LobbyActor <- NewGame($hash)")
+            id        <- randomGameId
             gameActor <- context.make(s"game-$id", actors.Supervisor.none, GameActor.initState(pack), GameActor.handler)
             pair = id -> gameActor
           } yield state.copy(games = state.games + pair) -> pair.asInstanceOf[A]
@@ -47,7 +44,7 @@ object LobbyActor {
         case EndGame(id) =>
           (for {
             game <- ZIO.fromOption(state.games.get(id))
-            _ <- game.stop
+            _    <- game.stop
           } yield ()).ignore.as(state.copy(games = state.games.removed(id)) -> ().asInstanceOf[A])
       }
   }
@@ -63,7 +60,7 @@ object LobbyActor {
       if (!mask.contains(maskSymbol)) UIO(mask)
       else
         for {
-          c <- randomPossibleChar
+          c   <- randomPossibleChar
           ret <- aux(mask.replaceFirst(maskSymbol, c))
         } yield ret
     }

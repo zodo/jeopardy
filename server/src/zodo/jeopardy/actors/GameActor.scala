@@ -13,14 +13,12 @@ object GameActor {
   type PlayerActorRef = ActorRef[OutgoingMessage]
 
   sealed trait InputMessage[+_]
-
   object InputMessage {
     case class JoinPlayer(id: String, name: String, reply: PlayerActorRef) extends InputMessage[Unit]
     case object StartGame extends InputMessage[Unit]
   }
 
   sealed trait OutgoingMessage[+_]
-
   object OutgoingMessage {
     case class NewPlayerConnected(id: String, name: String) extends OutgoingMessage[Unit]
     case class RoundStarted(round: PackModel.Round) extends OutgoingMessage[Unit]
@@ -36,14 +34,12 @@ object GameActor {
     case class Player(id: String, name: String, reply: PlayerActorRef)
 
     sealed trait GameState
-
     case object WaitingForStart extends GameState
 
     case class InRound(
       round: PackModel.Round,
       next: Option[PackModel.Round]
     ) extends GameState
-
   }
 
   def initState(pack: PackModel.Pack): State = State(pack, Nil, WaitingForStart)

@@ -15,7 +15,7 @@ final class EventsMediator(lobby: LobbyActorRef)(implicit
     access: Context.BaseAccess[AppTask, RootState, ClientEvent]
   ): AppTask[Extension.Handlers[AppTask, RootState, ClientEvent]] = {
     for {
-      session <- access.sessionId
+      session     <- access.sessionId
       actorSystem <- DefaultActorSystem.system
       sessionProxyActor <- actorSystem.make(
         s"proxy-$session",

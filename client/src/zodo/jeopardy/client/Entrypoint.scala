@@ -41,7 +41,7 @@ object Entrypoint extends App {
 
   private val program = for {
     fileRoute <- fileRouteM
-    appRoute <- appRouteM
+    appRoute  <- appRouteM
 
     httpApp = Router[AppTask](
       "/" -> appRoute,

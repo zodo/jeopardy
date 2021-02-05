@@ -16,7 +16,7 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
 
   val configM = for {
     system <- DefaultActorSystem.system
-    lobby <- system.make("lobby", Supervisor.none, LobbyActor.State.init, LobbyActor.handler)
+    lobby  <- system.make("lobby", Supervisor.none, LobbyActor.State.init, LobbyActor.handler)
   } yield config(lobby)
 
   val ctx = Context[AppTask, RootState, ClientEvent]

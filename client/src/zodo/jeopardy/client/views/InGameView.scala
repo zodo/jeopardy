@@ -5,6 +5,7 @@ import korolev.effect.Effect
 import ViewState._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
+import zodo.jeopardy.client.views.ViewState.GameState._
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
 

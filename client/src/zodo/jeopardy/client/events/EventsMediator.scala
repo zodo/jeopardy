@@ -20,8 +20,8 @@ final class EventsMediator(lobby: LobbyActorRef)(implicit
       sessionProxyActor <- actorSystem.make(
         s"proxy-$session",
         actors.Supervisor.none,
-        OutgoingProxy.State(None),
-        OutgoingProxy.handler(lobby, session, access)
+        OutgoingProxy.State(None, None),
+        OutgoingProxy.handler(lobby, session.toString, access)
       )
     } yield {
       Extension.Handlers[AppTask, RootState, ClientEvent](

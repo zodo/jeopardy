@@ -1,6 +1,6 @@
 package zodo.jeopardy.siq
 
-import scala.xml.XML
+import scala.xml._
 
 object SiqPrinterUtility extends App {
 

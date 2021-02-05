@@ -9,15 +9,11 @@ trait MillTests extends TestModule {
   def testFrameworks = Seq("utest.runner.Framework")
 }
 
-object model extends BaseScalaModule
-
-object `siq-parser` extends BaseScalaModule {
+object model extends BaseScalaModule {
 
   override def ivyDeps = Agg(
     ivy"org.scala-lang.modules::scala-xml:1.3.0"
   )
-
-  override def moduleDeps = Seq(model)
 
   object test extends Tests with MillTests
 }
@@ -31,7 +27,7 @@ object core extends BaseScalaModule {
     ivy"net.lingala.zip4j:zip4j:2.6.4"
   )
 
-  override def moduleDeps = Seq(`siq-parser`, model)
+  override def moduleDeps = Seq(model)
 
   object test extends Tests with MillTests
 }
@@ -52,7 +48,7 @@ object client extends BaseScalaModule {
     ivy"org.slf4j:slf4j-simple:1.7.30"
   )
 
-  override def moduleDeps = Seq(core, `siq-parser`)
+  override def moduleDeps = Seq(core)
 
   object test extends Tests with MillTests
 

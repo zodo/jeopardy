@@ -1,8 +1,7 @@
 package zodo.jeopardy.siq
 
 import zodo.jeopardy.model.PackModel
-
-import scala.xml.NodeSeq
+import scala.xml._
 
 object SiqXmlContentParser {
 

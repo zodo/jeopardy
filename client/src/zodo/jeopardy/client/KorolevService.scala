@@ -100,7 +100,8 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
                   case AppState.InGame(gi @ GameInfo(gameId, hash, players), gameState) =>
                     div(
                       h2(s"In game $gameId with pack $hash"),
-                      players.map(renderPlayer),
+                      players
+                        .map(renderPlayer),
                       gameState match {
                         case WaitingForStart                => renderWaitingForStart(gameId)
                         case InRound(round, takenQuestions) => renderInRound(round, takenQuestions)
@@ -109,13 +110,14 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
                       },
                       input(
                         `type` := "text",
-                        if (gi.me.state != PlayerState.Answer) disabled else void
+                        if (gi.me.exists(_.state != PlayerState.Answer)) disabled else void
                       ),
                       button(
-                        if (gi.me.state != PlayerState.Answer) disabled else void,
+                        if (gi.me.exists(_.state != PlayerState.Answer)) disabled else void,
                         "Send"
                       )
                     )
+                  case _ => div("Something is wrong")
                 }
               )
             )

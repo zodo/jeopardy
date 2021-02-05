@@ -11,6 +11,7 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.staticcontent.{FileService, fileService}
 import zio.blocking.Blocking
 import zio.interop.catz._
+import zio.logging.{LogLevel, Logging}
 import zio.{App, RIO, URIO, ZEnv, ZIO, ExitCode => ZExitCode}
 
 import scala.concurrent.ExecutionContext
@@ -57,7 +58,9 @@ object Entrypoint extends App {
   } yield ()
 
   override def run(args: List[String]): URIO[ZEnv, ZExitCode] = {
-    val env = ZEnv.live ++ DefaultActorSystem.live
+    val env = ZEnv.live ++ DefaultActorSystem.live >+> Logging.console(
+      logLevel = LogLevel.Debug
+    )
 
     program.provideLayer(env).exitCode
   }

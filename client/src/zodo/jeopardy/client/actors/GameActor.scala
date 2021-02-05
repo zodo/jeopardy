@@ -1,8 +1,9 @@
 package zodo.jeopardy.client.actors
 
-import zio.{RIO, UIO, ZIO}
 import zio.actors.Actor.Stateful
 import zio.actors.{ActorRef, Context}
+import zio.logging._
+import zio.{RIO, ZIO}
 import zodo.jeopardy.client.actors.GameActor.InputMessage.{JoinPlayer, StartGame}
 import zodo.jeopardy.client.actors.GameActor.State.{GameState, InRound, Player, WaitingForStart}
 import zodo.jeopardy.model.PackModel
@@ -48,21 +49,23 @@ object GameActor {
 
   def initState(pack: PackModel.Pack): State = State(pack, Nil, WaitingForStart)
 
-  val handler = new Stateful[Any, State, InputMessage] {
+  type Env = Logging
 
-    override def receive[A](state: State, msg: InputMessage[A], context: Context): RIO[Any, (State, A)] = {
+  val handler = new Stateful[Env, State, InputMessage] {
+
+    override def receive[A](state: State, msg: InputMessage[A], context: Context): RIO[Env, (State, A)] = {
       def broadcast(m: OutgoingMessage[Unit]) = ZIO.foreach(state.players)(p => p.reply ! m)
 
       msg match {
         case JoinPlayer(id, name, reply) =>
-          println(s"GameActor <- JoinPlayer($id, $name)")
           for {
+            _ <- log.debug(s"GameActor <- JoinPlayer($id, $name)")
             _ <- broadcast(OutgoingMessage.NewPlayerConnected(id, name))
             _ <- reply ! OutgoingMessage.NewPlayerConnected(id, name)
           } yield state.copy(players = state.players :+ Player(id, name, reply)) -> ()
         case StartGame =>
-          println(s"GameActor <- StartGame")
           for {
+            _ <- log.debug(s"GameActor <- StartGame")
             _ <- broadcast(OutgoingMessage.RoundStarted(state.pack.rounds.head))
           } yield state.copy(gameState = InRound(state.pack.rounds.head, state.pack.rounds.drop(1).headOption)) -> ()
       }

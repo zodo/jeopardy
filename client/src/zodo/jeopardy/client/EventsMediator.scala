@@ -4,12 +4,12 @@ import korolev.effect.Effect
 import korolev.{Context, Extension, Qsid}
 import zio._
 import zio.actors.Actor.Stateful
-import zio.interop.console.cats.{putStr, putStrLn}
-import zodo.jeopardy.client.AppState.PlayerState.Idle
-import zodo.jeopardy.client.AppState.{GameInfo, InGame, InRound, PlayerInfo, PlayerState, WaitingForStart}
+import zio.actors.ActorRef
+import zio.logging._
+import zodo.jeopardy.client.AppState._
 import zodo.jeopardy.client.actors.GameActor.OutgoingMessage.{NewPlayerConnected, RoundStarted}
-import zodo.jeopardy.client.actors.{GameActor, LobbyActor}
 import zodo.jeopardy.client.actors.LobbyActor.LobbyActorRef
+import zodo.jeopardy.client.actors.{GameActor, LobbyActor}
 
 final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState, ClientEvent])(implicit
   eff: Effect[AppTask]
@@ -36,8 +36,8 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
           context: actors.Context
         ): RIO[AppEnv, (Unit, A)] = msg match {
           case NewPlayerConnected(id, name) =>
-            println(s"GameActorListener <- NewPlayerConnected($id, $name)")
             for {
+              _ <- log.debug(s"GameActorListener <- NewPlayerConnected($id, $name)")
               session <- access.sessionId
               _ <- access.maybeTransition { case s @ InGame(GameInfo(_, _, players), _) =>
                 s.copy(gameInfo =
@@ -54,11 +54,13 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
               }
             } yield () -> ()
           case RoundStarted(round) =>
-            access
-              .maybeTransition { case s: InGame =>
-                s.copy(gameState = InRound(round, Set()))
-              }
-              .as(() -> ())
+            for {
+              _ <- log.debug(s"GameActorListener <- RoundStarted")
+              _ <- access
+                .maybeTransition { case s: InGame =>
+                  s.copy(gameState = InRound(round, Set()))
+                }
+            } yield () -> ()
         }
       }
   }
@@ -76,21 +78,22 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
         ): RIO[AppEnv, (State, A)] = {
           msg match {
             case ClientEvent.Introduce(name) =>
-              access.transition(_ => AppState.Authorized(name, None)).as(State(Some(name)))
+              for {
+                _ <- log.debug(s"<- ClientEvent.Introduce($name)")
+                _ <- access.transition(_ => AppState.Authorized(name, None))
+              } yield State(Some(name))
+
             case ClientEvent.UploadFile(hash, pack) =>
-              println("file uploaded")
               for {
                 (id, _) <- lobby ? LobbyActor.Message.NewGame(hash, pack)
-                _ <- access.publish(ClientEvent.EnterGame(id))
+                self: ActorRef[ParametrizedClientEvent] <- context.self
+                _ <- self ! ClientEvent.EnterGame(id)
               } yield state
             case ClientEvent.EnterGame(gameId) =>
-              println(s"entering game $gameId as ${state.playerName}")
               state match {
                 case State(Some(playerName)) =>
                   for {
-                    _ <- access.transition(_ =>
-                      InGame(GameInfo("", "", Seq(PlayerInfo("id", playerName, 0, Idle, true))), WaitingForStart)
-                    )
+                    _ <- log.debug(s"entering game $gameId as ${playerName}")
                     maybeGame <- lobby ? LobbyActor.Message.GetGame(gameId)
                     _ <- maybeGame match {
                       case Some(game) =>
@@ -101,14 +104,14 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
                             (),
                             GameActorListener(access)
                           )
-                          _ <- putStrLn("OutgoingProxy ~ Transitioning to InGame")
-                          _ <- access.transition(_ => InGame(GameInfo(gameId, "", Seq()), WaitingForStart))
+                          _ <- access.transition(_ => AppState.InGame(GameInfo(gameId, "", Seq()), WaitingForStart))
                           _ <- game ! GameActor.InputMessage.JoinPlayer(session.toString, playerName, gameListener)
                         } yield ()
                       case None => access.transition(_ => AppState.Authorized(playerName, Some("Game not found")))
                     }
                   } yield state
-                case State(None) => ZIO(state) // impossible
+                case State(None) =>
+                  log.error(s"OutgoingProxy ~ entering game $gameId without name").as(state)
               }
             case ClientEvent.StartGame(gameId) =>
               for {

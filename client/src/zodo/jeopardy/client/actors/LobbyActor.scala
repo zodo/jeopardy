@@ -5,6 +5,7 @@ import zio.actors.Actor.Stateful
 import zio.actors.{ActorRef, Context, Supervisor}
 import zio.clock.Clock
 import zio.random._
+import zio.logging._
 import zodo.jeopardy.client.actors.GameActor.GameActorRef
 import zodo.jeopardy.client.actors.LobbyActor.Message.{EndGame, GetGame, NewGame}
 import zodo.jeopardy.model.PackModel
@@ -27,20 +28,23 @@ object LobbyActor {
     val init = State(Map())
   }
 
-  val handler = new Stateful[Random with Clock, State, Message] {
+  type Env = Random with Clock with Logging
 
-    override def receive[A](state: State, msg: Message[A], context: Context): RIO[Random with Clock, (State, A)] =
+  val handler = new Stateful[Env, State, Message] {
+
+    override def receive[A](state: State, msg: Message[A], context: Context): RIO[Env, (State, A)] =
       msg match {
         case NewGame(hash, pack) =>
-          println(s"LobbyActor <- NewGame($hash)")
           for {
+            _ <- log.debug(s"LobbyActor <- NewGame($hash)")
             id <- randomGameId
             gameActor <- context.make(s"game-$id", Supervisor.none, GameActor.initState(pack), GameActor.handler)
             pair = id -> gameActor
           } yield state.copy(games = state.games + pair) -> pair.asInstanceOf[A]
         case GetGame(id) =>
-          println(s"LobbyActor <- GetGame($id)")
-          UIO(state -> state.games.get(id).asInstanceOf[A])
+          log
+            .debug(s"LobbyActor <- GetGame($id)")
+            .as(state -> state.games.get(id).asInstanceOf[A])
         case EndGame(id) =>
           (for {
             game <- ZIO.fromOption(state.games.get(id))
@@ -50,18 +54,18 @@ object LobbyActor {
   }
 
   private val randomGameId: URIO[Random, String] = {
-    val possibleChars = 'a' to 'z'
+    val symbols = ('a' to 'z').map(_.toString)
     val mask = "###-###-###"
-    val maskChar = '#'
+    val maskSymbol = "#"
 
-    val randomPossibleChar = nextIntBounded(possibleChars.length).map(possibleChars(_))
+    val randomPossibleChar = nextIntBounded(symbols.length).map(symbols(_))
 
     def aux(mask: String): ZIO[Random, Nothing, String] = {
-      if (!mask.contains(maskChar)) UIO(mask)
+      if (!mask.contains(maskSymbol)) UIO(mask)
       else
         for {
           c <- randomPossibleChar
-          ret <- aux(mask.replace(maskChar, c))
+          ret <- aux(mask.replaceFirst(maskSymbol, c))
         } yield ret
     }
 

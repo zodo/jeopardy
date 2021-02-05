@@ -22,7 +22,7 @@ object AppState {
     packHash: String,
     players: Seq[PlayerInfo]
   ) {
-    def me: PlayerInfo = players.filter(_.me).head
+    def me: Option[PlayerInfo] = players.find(_.me)
   }
 
   sealed trait PlayerState

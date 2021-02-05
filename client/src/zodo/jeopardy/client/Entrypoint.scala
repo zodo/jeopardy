@@ -13,6 +13,8 @@ import zio.blocking.Blocking
 import zio.interop.catz._
 import zio.logging.{LogLevel, Logging}
 import zio.{App, RIO, URIO, ZEnv, ZIO, ExitCode => ZExitCode}
+import zodo.jeopardy.client.environment.{AppEnv, AppTask, DefaultActorSystem}
+import zodo.jeopardy.client.views.KorolevService
 
 import scala.concurrent.ExecutionContext
 

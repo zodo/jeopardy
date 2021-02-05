@@ -1,4 +1,4 @@
-package zodo.jeopardy.client
+package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
@@ -7,7 +7,8 @@ import korolev.state.javaSerialization._
 import zio.actors.Supervisor
 import zodo.jeopardy.actors.LobbyActor
 import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
-import zodo.jeopardy.client.views.RootView
+import zodo.jeopardy.client.environment.{AppTask, DefaultActorSystem}
+import zodo.jeopardy.client.events.{ClientEvent, EventsMediator}
 
 import scala.concurrent.ExecutionContext
 
@@ -26,16 +27,16 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
   private def config(lobby: LobbyActorRef) = {
 
     val rootView = new RootView(
-      ctx.scope[AppState](
+      ctx.scope[ViewState](
         read = { case RootState(_, appState) => appState },
-        write = { case (rootState, appState) => rootState.copy(appState = appState) }
+        write = { case (rootState, appState) => rootState.copy(viewState = appState) }
       )
     )
 
     val eventsMediator = new EventsMediator(lobby)
 
     KorolevServiceConfig[AppTask, RootState, ClientEvent](
-      stateLoader = StateLoader.default(RootState(isLoading = false, AppState.Anonymous)),
+      stateLoader = StateLoader.default(RootState(isLoading = false, ViewState.Anonymous)),
       extensions = List(eventsMediator),
       document = state =>
         optimize {
@@ -54,11 +55,10 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
             ),
             body(
               if (state.isLoading) cursor @= "wait" else void,
-              rootView.render(state.appState)
+              rootView.render(state.viewState)
             )
           )
         }
     )
   }
-
 }

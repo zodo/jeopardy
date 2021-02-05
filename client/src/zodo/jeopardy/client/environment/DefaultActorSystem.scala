@@ -1,7 +1,7 @@
-package zodo.jeopardy.client
+package zodo.jeopardy.client.environment
 
-import zio.actors.ActorSystem
 import zio.{Has, RIO, ZIO, ZLayer}
+import zio.actors.ActorSystem
 
 object DefaultActorSystem {
 

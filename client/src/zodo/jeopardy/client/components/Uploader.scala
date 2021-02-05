@@ -7,9 +7,9 @@ import korolev.effect.Effect
 import korolev.effect.io.FileIO
 import korolev.state.javaSerialization._
 import zio.Task
-import zodo.jeopardy.client.AppTask
 import zodo.jeopardy.client.components.Uploader.UploadStage._
 import zodo.jeopardy.client.components.Uploader.{FileUploaded, State}
+import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.service.FileOperations
 
@@ -23,7 +23,7 @@ class Uploader(implicit eff: Effect[AppTask])
   import levsha.dsl._
   import html._
 
-  val fileInput = elementId()
+  private val fileInput = elementId()
 
   def render(props: Unit, state: State) = {
     div(

@@ -3,19 +3,22 @@ package zodo.jeopardy.client.views
 import korolev.Context
 import korolev.effect.Effect
 import zodo.jeopardy.client.components.Uploader
-import zodo.jeopardy.client.{AppState, AppTask, ClientEvent, RootState}
 import korolev.state.javaSerialization._
+import zodo.jeopardy.client.environment.AppTask
+import zodo.jeopardy.client.events.ClientEvent
 
-class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, AppState, ClientEvent])(implicit eff: Effect[AppTask]) {
+class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent])(implicit
+  eff: Effect[AppTask]
+) {
 
   import ctx._
   import levsha.dsl._
   import html._
 
-  val gameInputId = elementId()
-  val uploader = new Uploader
+  private val gameInputId = elementId()
+  private val uploader = new Uploader
 
-  def render(s: AppState.Authorized) = optimize {
+  def render(s: ViewState.Authorized) = optimize {
     div(
       h2(s"Hello ${s.name}!"),
       div(
@@ -44,7 +47,5 @@ class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, AppState, Client
         }
       )
     )
-
   }
-
 }

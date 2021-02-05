@@ -1,4 +1,4 @@
-package zodo.jeopardy.client
+package zodo.jeopardy.client.events
 
 import zodo.jeopardy.model.PackModel
 

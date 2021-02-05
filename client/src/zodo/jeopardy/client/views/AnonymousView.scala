@@ -1,9 +1,10 @@
 package zodo.jeopardy.client.views
 
 import korolev.Context
-import zodo.jeopardy.client.{AppState, AppTask, ClientEvent, RootState}
+import zodo.jeopardy.client.environment.AppTask
+import zodo.jeopardy.client.events.ClientEvent
 
-class AnonymousView(val ctx: Context.Scope[AppTask, RootState, AppState, ClientEvent]) {
+class AnonymousView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent]) {
 
   import ctx._
   import levsha.dsl._

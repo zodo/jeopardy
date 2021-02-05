@@ -1,20 +1,20 @@
-package zodo.jeopardy.client
+package zodo.jeopardy.client.views
 
 import zodo.jeopardy.model.PackModel
 
-case class RootState(isLoading: Boolean, appState: AppState) {
-  def complete(state: AppState): RootState = copy(isLoading = false, appState = state)
+case class RootState(isLoading: Boolean, viewState: ViewState) {
+  def complete(viewState: ViewState): RootState = copy(isLoading = false, viewState = viewState)
   def loading: RootState = copy(isLoading = true)
 }
 
-sealed trait AppState
+sealed trait ViewState
 
-object AppState {
-  case object Anonymous extends AppState
+object ViewState {
+  case object Anonymous extends ViewState
 
-  case class Authorized(name: String, errorMessage: Option[String]) extends AppState
+  case class Authorized(name: String, errorMessage: Option[String]) extends ViewState
 
-  case class InGame(gameInfo: GameInfo, gameState: GameState) extends AppState
+  case class InGame(gameInfo: GameInfo, gameState: GameState) extends ViewState
 
   sealed trait GameState
   case object WaitingForStart extends GameState

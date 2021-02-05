@@ -2,6 +2,11 @@ package zodo.jeopardy.client
 
 import zodo.jeopardy.model.PackModel
 
+case class RootState(isLoading: Boolean, appState: AppState) {
+  def complete(state: AppState): RootState = copy(isLoading = false, appState = state)
+  def loading: RootState = copy(isLoading = true)
+}
+
 sealed trait AppState
 
 object AppState {

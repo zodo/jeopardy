@@ -11,19 +11,11 @@ import zodo.jeopardy.client.AppState._
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.{NewPlayerConnected, RoundStarted}
 import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
 
-final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState, ClientEvent])(implicit
+final class EventsMediator(lobby: LobbyActorRef)(implicit
   eff: Effect[AppTask]
-) extends Extension[AppTask, AppState, ClientEvent] {
+) extends Extension[AppTask, RootState, ClientEvent] {
 
-  type Access = Context.BaseAccess[AppTask, AppState, ClientEvent]
-
-  object Scopes {
-
-    val gameInfo = ctx.scope[GameInfo](
-      read = { case InGame(gameInfo, _) => gameInfo },
-      write = { case (s: InGame, gameInfo) => s.copy(gameInfo = gameInfo) }
-    )
-  }
+  type Access = Context.BaseAccess[AppTask, RootState, ClientEvent]
 
   object GameActorListener {
 
@@ -39,15 +31,17 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
             for {
               _ <- log.debug(s"GameActorListener <- NewPlayerConnected($id, $name)")
               session <- access.sessionId
-              _ <- access.maybeTransition { case s @ InGame(GameInfo(_, _, players), _) =>
-                s.copy(gameInfo =
-                  s.gameInfo.copy(players =
-                    players :+ PlayerInfo(
-                      id,
-                      name,
-                      0,
-                      PlayerState.Idle,
-                      session.toString == id
+              _ <- access.maybeTransition { case r @ RootState(_, s @ InGame(GameInfo(_, _, players), _)) =>
+                r.complete(
+                  s.copy(gameInfo =
+                    s.gameInfo.copy(players =
+                      players :+ PlayerInfo(
+                        id,
+                        name,
+                        0,
+                        PlayerState.Idle,
+                        session.toString == id
+                      )
                     )
                   )
                 )
@@ -57,8 +51,8 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
             for {
               _ <- log.debug(s"GameActorListener <- RoundStarted")
               _ <- access
-                .maybeTransition { case s: InGame =>
-                  s.copy(gameState = InRound(round, Set()))
+                .maybeTransition { case r @ RootState(_, s: InGame) =>
+                  r.complete(s.copy(gameState = InRound(round, Set())))
                 }
             } yield () -> ()
         }
@@ -80,7 +74,7 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
             case ClientEvent.Introduce(name) =>
               for {
                 _ <- log.debug(s"<- ClientEvent.Introduce($name)")
-                _ <- access.transition(_ => AppState.Authorized(name, None))
+                _ <- access.transition(_.complete(AppState.Authorized(name, None)))
               } yield State(Some(name))
 
             case ClientEvent.UploadFile(hash, pack) =>
@@ -104,10 +98,13 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
                             (),
                             GameActorListener(access)
                           )
-                          _ <- access.transition(_ => AppState.InGame(GameInfo(gameId, "", Seq()), WaitingForStart))
+                          _ <- access.transition(
+                            _.complete(AppState.InGame(GameInfo(gameId, "", Seq()), WaitingForStart))
+                          )
                           _ <- game ! GameActor.InputMessage.JoinPlayer(session.toString, playerName, gameListener)
                         } yield ()
-                      case None => access.transition(_ => AppState.Authorized(playerName, Some("Game not found")))
+                      case None =>
+                        access.transition(_.complete(AppState.Authorized(playerName, Some("Game not found"))))
                     }
                   } yield state
                 case State(None) =>
@@ -126,7 +123,9 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
       }
   }
 
-  def setup(access: Access): AppTask[Extension.Handlers[AppTask, AppState, ClientEvent]] = {
+  def setup(
+    access: Context.BaseAccess[AppTask, RootState, ClientEvent]
+  ): AppTask[Extension.Handlers[AppTask, RootState, ClientEvent]] = {
     for {
       session <- access.sessionId
       actorSystem <- DefaultActorSystem.system
@@ -136,9 +135,15 @@ final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState,
         OutgoingProxy.State(None),
         OutgoingProxy(session, access)
       )
-    } yield Extension.Handlers[AppTask, AppState, ClientEvent](
-      onDestroy = () => sessionProxyActor.stop.unit,
-      onMessage = sessionProxyActor ! _
-    )
+    } yield {
+      Extension.Handlers[AppTask, RootState, ClientEvent](
+        onDestroy = () => sessionProxyActor.stop.unit,
+        onMessage = message =>
+          for {
+            _ <- access.transition(_.loading)
+            _ <- sessionProxyActor ! message
+          } yield ()
+      )
+    }
   }
 }

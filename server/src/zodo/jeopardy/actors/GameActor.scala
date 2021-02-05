@@ -1,11 +1,10 @@
-package zodo.jeopardy.client.actors
+package zodo.jeopardy.actors
 
-import zio.actors.Actor.Stateful
-import zio.actors.{ActorRef, Context}
+import zio._
+import zio.actors._
 import zio.logging._
-import zio.{RIO, ZIO}
-import zodo.jeopardy.client.actors.GameActor.InputMessage.{JoinPlayer, StartGame}
-import zodo.jeopardy.client.actors.GameActor.State.{GameState, InRound, Player, WaitingForStart}
+import zodo.jeopardy.actors.GameActor.InputMessage.{JoinPlayer, StartGame}
+import zodo.jeopardy.actors.GameActor.State.{GameState, InRound, Player, WaitingForStart}
 import zodo.jeopardy.model.PackModel
 
 object GameActor {
@@ -51,7 +50,7 @@ object GameActor {
 
   type Env = Logging
 
-  val handler = new Stateful[Env, State, InputMessage] {
+  val handler = new Actor.Stateful[Env, State, InputMessage] {
 
     override def receive[A](state: State, msg: InputMessage[A], context: Context): RIO[Env, (State, A)] = {
       def broadcast(m: OutgoingMessage[Unit]) = ZIO.foreach(state.players)(p => p.reply ! m)

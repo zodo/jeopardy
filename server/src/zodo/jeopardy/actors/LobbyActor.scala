@@ -1,13 +1,12 @@
-package zodo.jeopardy.client.actors
+package zodo.jeopardy.actors
 
-import zio.{RIO, UIO, URIO, ZIO}
-import zio.actors.Actor.Stateful
-import zio.actors.{ActorRef, Context, Supervisor}
+import zio._
+import zio.actors._
+import zio.logging._
 import zio.clock.Clock
 import zio.random._
-import zio.logging._
-import zodo.jeopardy.client.actors.GameActor.GameActorRef
-import zodo.jeopardy.client.actors.LobbyActor.Message.{EndGame, GetGame, NewGame}
+import zodo.jeopardy.actors.GameActor.GameActorRef
+import zodo.jeopardy.actors.LobbyActor.Message.{EndGame, GetGame, NewGame}
 import zodo.jeopardy.model.PackModel
 
 object LobbyActor {
@@ -30,7 +29,7 @@ object LobbyActor {
 
   type Env = Random with Clock with Logging
 
-  val handler = new Stateful[Env, State, Message] {
+  val handler = new Actor.Stateful[Env, State, Message] {
 
     override def receive[A](state: State, msg: Message[A], context: Context): RIO[Env, (State, A)] =
       msg match {
@@ -38,7 +37,7 @@ object LobbyActor {
           for {
             _ <- log.debug(s"LobbyActor <- NewGame($hash)")
             id <- randomGameId
-            gameActor <- context.make(s"game-$id", Supervisor.none, GameActor.initState(pack), GameActor.handler)
+            gameActor <- context.make(s"game-$id", actors.Supervisor.none, GameActor.initState(pack), GameActor.handler)
             pair = id -> gameActor
           } yield state.copy(games = state.games + pair) -> pair.asInstanceOf[A]
         case GetGame(id) =>

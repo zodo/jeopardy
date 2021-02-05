@@ -1,4 +1,4 @@
-package zodo.jeopardy.client
+package zodo.jeopardy.client.components
 
 import korolev.Component
 import korolev.Context.FileHandler
@@ -7,15 +7,17 @@ import korolev.effect.Effect
 import korolev.effect.io.FileIO
 import korolev.state.javaSerialization._
 import zio.Task
-import zodo.jeopardy.client.Uploader.State
-import zodo.jeopardy.client.Uploader.UploadStage.{UnpackError, Unpacking, Uploading, Waiting}
+import zodo.jeopardy.client.AppTask
+import zodo.jeopardy.client.components.Uploader.UploadStage._
+import zodo.jeopardy.client.components.Uploader.{FileUploaded, State}
+import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.service.FileOperations
 
 import java.nio.file.Paths
 import scala.util.Try
 
 class Uploader(implicit eff: Effect[AppTask])
-    extends Component[AppTask, State, Unit, ClientEvent](State(Waiting, None)) {
+    extends Component[AppTask, State, Unit, FileUploaded](State(Waiting, None)) {
 
   import context._
   import levsha.dsl._
@@ -81,13 +83,16 @@ class Uploader(implicit eff: Effect[AppTask])
 
       _ <- access.transition(_.copy(stage = Unpacking, percentage = None))
       fileInfo <- FileOperations.unpackFile(downloadedFilePath)
-      _ <- access.publish(ClientEvent.UploadFile(fileInfo.hash, fileInfo.pack))
+      _ <- access.publish(FileUploaded(fileInfo.hash, fileInfo.pack))
     } yield ())
       .catchAll(err => access.transition(_ => State(UnpackError(err.toString), None)))
   }
 }
 
 object Uploader {
+
+  case class FileUploaded(hash: String, pack: PackModel.Pack)
+
   case class State(stage: UploadStage, percentage: Option[Int])
 
   sealed trait UploadStage

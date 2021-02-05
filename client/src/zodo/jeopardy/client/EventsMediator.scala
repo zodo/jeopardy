@@ -6,10 +6,10 @@ import zio._
 import zio.actors.Actor.Stateful
 import zio.actors.ActorRef
 import zio.logging._
+import zodo.jeopardy.actors.{GameActor, LobbyActor}
 import zodo.jeopardy.client.AppState._
-import zodo.jeopardy.client.actors.GameActor.OutgoingMessage.{NewPlayerConnected, RoundStarted}
-import zodo.jeopardy.client.actors.LobbyActor.LobbyActorRef
-import zodo.jeopardy.client.actors.{GameActor, LobbyActor}
+import zodo.jeopardy.actors.GameActor.OutgoingMessage.{NewPlayerConnected, RoundStarted}
+import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
 
 final class EventsMediator(lobby: LobbyActorRef, ctx: Context[AppTask, AppState, ClientEvent])(implicit
   eff: Effect[AppTask]

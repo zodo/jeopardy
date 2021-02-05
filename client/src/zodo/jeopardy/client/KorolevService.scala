@@ -7,9 +7,10 @@ import korolev.state.javaSerialization._
 import zio.{RIO, ZIO, actors}
 import zio.actors.Actor.Stateful
 import zio.actors.{ActorRef, Supervisor}
+import zodo.jeopardy.actors.LobbyActor
 import zodo.jeopardy.client.AppState._
-import zodo.jeopardy.client.actors.LobbyActor
-import zodo.jeopardy.client.actors.LobbyActor.LobbyActorRef
+import LobbyActor.LobbyActorRef
+import zodo.jeopardy.client.components.Uploader
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
 
@@ -74,7 +75,9 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
                       h2(s"Hello $name!"),
                       div(
                         h3("Either create a new game"),
-                        uploader(()) { (access, event) => access.publish(event) },
+                        uploader(()) { case (access, Uploader.FileUploaded(hash, pack)) =>
+                          access.publish(ClientEvent.UploadFile(hash, pack))
+                        },
                         h3("Or join the existing"),
                         form(
                           input(gameInputId, `type` := "text", placeholder := "Game ID"),

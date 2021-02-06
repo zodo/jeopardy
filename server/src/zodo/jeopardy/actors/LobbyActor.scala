@@ -2,35 +2,23 @@ package zodo.jeopardy.actors
 
 import zio._
 import zio.actors._
-import zio.logging._
 import zio.clock.Clock
+import zio.logging._
 import zio.random._
-import zodo.jeopardy.actors.GameActor.GameActorRef
-import zodo.jeopardy.actors.LobbyActor.Message.{EndGame, GetGameEntry, NewGame}
-import zodo.jeopardy.actors.LobbyActor.State.GameEntry
-import zodo.jeopardy.model.PackModel
+import zodo.jeopardy.model.{GameEntry, LobbyCommand}
+import zodo.jeopardy.model.LobbyCommand._
 
 object LobbyActor {
 
-  type LobbyActorRef = ActorRef[Message]
-
-  sealed trait Message[+_]
-  object Message {
-    case class NewGame(hash: String, pack: PackModel.Pack) extends Message[GameEntry]
-    case class GetGameEntry(id: String) extends Message[Option[GameEntry]]
-    case class EndGame(id: String) extends Message[Unit]
-  }
-
   case class State(entries: Map[String, GameEntry])
   object State {
-    case class GameEntry(id: String, packId: String, game: GameActorRef)
     val init = State(Map())
   }
 
   type Env = Random with Clock with Logging
 
-  val handler = new Actor.Stateful[Env, State, Message] {
-    override def receive[A](state: State, msg: Message[A], context: Context): RIO[Env, (State, A)] =
+  val handler = new Actor.Stateful[Env, State, LobbyCommand] {
+    override def receive[A](state: State, msg: LobbyCommand[A], context: Context): RIO[Env, (State, A)] =
       msg match {
         case NewGame(hash, pack) =>
           for {

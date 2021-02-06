@@ -5,7 +5,7 @@ import korolev.effect.Effect
 import ViewState._
 import levsha.events.EventPhase.AtTarget
 import zio.logging.log
-import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage._
+import zodo.jeopardy.model.StageSnapshot._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.model.PackModel
@@ -27,15 +27,15 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           players
             .map(renderPlayer),
           stage match {
-            case WaitingForStart => renderWaitingForStart
-            case s: InRound      => renderInRound(s.round, s.takenQuestions)
-            case s: InQuestion   => renderQuestion(hash, s.question)
-            case s: InAwaitingAnswer =>
+            case BeforeStart => renderWaitingForStart
+            case s: Round    => renderInRound(s.round, s.takenQuestions)
+            case s: Question => renderQuestion(hash, s.question)
+            case s: AnswerAttempt =>
               div(
                 renderQuestion(hash, s.question),
                 if (inGame.me.exists(_.id == s.activePlayer)) renderAnswerInput else void
               )
-            case s: InShowAnswer => renderInAnswer(hash, s.answer)
+            case s: Answer => renderInAnswer(hash, s.answer)
           }
         )
       }
@@ -45,6 +45,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     val PlayerInfo(id, name, score, state, me, buttonPressed, guess) = info
 
     div(
+      title := s"Id - $id",
       ul(
         h3(
           if (buttonPressed) {
@@ -58,7 +59,6 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           when(buttonPressed)(backgroundColor @= "red"),
           s"$name${if (me) "(its me!)" else ""} - $state"
         ),
-        li(s"Id - $id"),
         li(s"Score - $score"),
         guess match {
           case Some(g) =>
@@ -94,7 +94,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               td(
                 when(takenQuestions.contains(question.id))(color @= "gray"),
                 question.price.toString(),
-                event("click")(_.publish(ClientEvent.ChooseQuestion(question.id)))
+                event("click")(_.publish(ClientEvent.SelectQuestion(question.id)))
               )
             )
           )
@@ -144,7 +144,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
         event("click") { access =>
           for {
             answer <- access.valueOf(answerInput)
-            _      <- access.publish(ClientEvent.Answer(answer))
+            _      <- access.publish(ClientEvent.GiveAnswer(answer))
           } yield ()
         }
       )

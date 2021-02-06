@@ -1,6 +1,6 @@
 package zodo.jeopardy.client.views
 
-import zodo.jeopardy.actors.GameActor
+import zodo.jeopardy.model.StageSnapshot
 
 sealed trait ViewState
 object ViewState {
@@ -10,7 +10,7 @@ object ViewState {
     id: String,
     packId: String,
     players: Seq[PlayerInfo],
-    stage: GameActor.OutgoingMessage.SimpleStage
+    stage: StageSnapshot
   ) extends ViewState {
     val me: Option[PlayerInfo] = players.find(_.me)
     def withPlayers(mapOnly: PlayerInfo => Boolean, map: PlayerInfo => PlayerInfo): InGame = {

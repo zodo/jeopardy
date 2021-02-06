@@ -3,7 +3,7 @@ package zodo.jeopardy.client.events
 import korolev.Extension
 import korolev.effect.Effect
 import zio._
-import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
+import zodo.jeopardy.actors.LobbyActorRef
 import zodo.jeopardy.client.environment.{AppTask, DefaultActorSystem}
 import zodo.jeopardy.client.views.ViewState
 

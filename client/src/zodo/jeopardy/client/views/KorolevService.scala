@@ -5,8 +5,7 @@ import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
 import zio.actors.Supervisor
-import zodo.jeopardy.actors.LobbyActor
-import zodo.jeopardy.actors.LobbyActor.LobbyActorRef
+import zodo.jeopardy.actors.{LobbyActor, LobbyActorRef}
 import zodo.jeopardy.client.environment.{AppTask, DefaultActorSystem}
 import zodo.jeopardy.client.events.{ClientEvent, EventsMediator}
 

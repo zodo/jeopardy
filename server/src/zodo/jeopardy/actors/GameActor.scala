@@ -2,6 +2,8 @@ package zodo.jeopardy.actors
 
 import zio._
 import zio.actors._
+import zio.clock.Clock
+import zio.duration.durationInt
 import zio.logging._
 import zio.random._
 import zodo.jeopardy.actors.GameActor.InputMessage._
@@ -23,6 +25,7 @@ object GameActor {
     case class ChooseQuestion(playerId: String, questionId: String) extends InputMessage[Unit]
     case class HitButton(playerId: String) extends InputMessage[Unit]
     case class Answer(playerId: String, answer: String) extends InputMessage[Unit]
+    case object BackToRound extends InputMessage[Unit]
   }
 
   sealed trait OutgoingMessage[+_]
@@ -93,7 +96,7 @@ object GameActor {
 
   def initState(pack: PackModel.Pack): State = State(pack, Seq(), WaitingForStart)
 
-  type Env = Logging with Random
+  type Env = Logging with Random with Clock
 
   val handler = new Actor.Stateful[Env, State, InputMessage] {
 
@@ -160,13 +163,16 @@ object GameActor {
               .copy(stage =
                 r.copy(
                   takenQuestions = r.takenQuestions + question.id,
+                  activePlayer = playerId,
                   stage = ShowAnswer(question.answers)
                 )
               )
             for {
-              _ <- broadcast(OutgoingMessage.PlayerHasAnswer(playerId, answer, isCorrect = true))
-              _ <- broadcast(OutgoingMessage.PlayerScoreUpdated(playerId, question.price))
-              _ <- broadcast(OutgoingMessage.StageUpdated(newState.stage.toSimple))
+              _    <- broadcast(OutgoingMessage.PlayerHasAnswer(playerId, answer, isCorrect = true))
+              _    <- broadcast(OutgoingMessage.PlayerScoreUpdated(playerId, question.price))
+              _    <- broadcast(OutgoingMessage.StageUpdated(newState.stage.toSimple))
+              self <- context.self[InputMessage]
+              _    <- (self ! BackToRound).delay(5.second).fork
             } yield newState -> ()
           } else {
             val newState = withUpdatedPlayerScore(state, playerId, _ - question.price)
@@ -177,6 +183,24 @@ object GameActor {
               _ <- broadcast(OutgoingMessage.StageUpdated(newState.stage.toSimple))
             } yield newState -> ()
           }
+
+        case (State(pack, _, r @ Round(round, tq, ap, _)), BackToRound) =>
+          val haveMoreQuestions = round.themes.flatMap(_.questions).size > tq.size
+          val newStage = if (haveMoreQuestions) {
+            r.copy(stage = Idle)
+          } else {
+            val haveMoreRounds = pack.rounds.last.id == round.id
+            if (haveMoreRounds) {
+              val newRound = pack.rounds(pack.rounds.indexWhere(_.id == round.id) + 1)
+              Round(newRound, Set(), ap, Idle)
+            } else {
+              ???
+            }
+          }
+
+          for {
+            _ <- broadcast(OutgoingMessage.StageUpdated(newStage.toSimple))
+          } yield state.copy(stage = newStage) -> ()
 
         case s => log.error(s"unexpected GameActor <- $s").as(state -> ().asInstanceOf[A])
       }

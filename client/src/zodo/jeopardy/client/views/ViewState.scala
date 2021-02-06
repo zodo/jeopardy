@@ -2,11 +2,6 @@ package zodo.jeopardy.client.views
 
 import zodo.jeopardy.actors.GameActor
 
-case class RootState(isLoading: Boolean, viewState: ViewState) {
-  def complete(viewState: ViewState): RootState = copy(isLoading = false, viewState = viewState)
-  def loading: RootState = copy(isLoading = true)
-}
-
 sealed trait ViewState
 object ViewState {
   case object Anonymous extends ViewState

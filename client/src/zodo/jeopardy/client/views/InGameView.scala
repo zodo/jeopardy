@@ -3,13 +3,14 @@ package zodo.jeopardy.client.views
 import korolev.Context
 import korolev.effect.Effect
 import ViewState._
+import levsha.events.EventPhase.AtTarget
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
 
-class InGameView(val ctx: Context.Scope[AppTask, RootState, InGame, ClientEvent])(implicit eff: Effect[AppTask]) {
+class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent])(implicit eff: Effect[AppTask]) {
 
   import ctx._
   import levsha.dsl._
@@ -99,10 +100,9 @@ class InGameView(val ctx: Context.Scope[AppTask, RootState, InGame, ClientEvent]
         backgroundColor @= "green",
         autofocus := "true",
         "I know!",
-        event("click") { access =>
-          println("CLICK")
-          access.publish(ClientEvent.HitButton)
-        }
+        event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+        event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+        event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
       )
     )
   }

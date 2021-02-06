@@ -33,7 +33,7 @@ object OutgoingProxy {
           case (_, ClientEvent.Introduce(name)) =>
             for {
               _ <- log.debug(s"<- ClientEvent.Introduce($name)")
-              _ <- access.transition(_.complete(ViewState.Authorized(name)))
+              _ <- access.transition(_ => ViewState.Authorized(name))
             } yield State(Some(name), None)
 
           case (_, ClientEvent.UploadFile(hash, pack)) =>
@@ -57,14 +57,12 @@ object OutgoingProxy {
                       newViewState,
                       GameActorListener.handler(playerId, access)
                     )
-                    _ <- access.transition(
-                      _.complete(newViewState)
-                    )
+                    _ <- access.transition(_ => newViewState)
                     _ <- game ! GameActor.InputMessage.JoinPlayer(playerId, playerName, gameListener)
                   } yield state.copy(game = Some(game))
                 case None =>
                   access
-                    .transition(_.complete(ViewState.Authorized(playerName, Some("Game not found"))))
+                    .transition(_ => ViewState.Authorized(playerName, Some("Game not found")))
                     .as(State(Some(playerName), None))
               }
             } yield newState

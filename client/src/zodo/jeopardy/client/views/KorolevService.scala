@@ -19,24 +19,19 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
     lobby  <- system.make("lobby", Supervisor.none, LobbyActor.State.init, LobbyActor.handler)
   } yield config(lobby)
 
-  val ctx = Context[AppTask, RootState, ClientEvent]
+  val ctx = Context[AppTask, ViewState, ClientEvent]
 
   import levsha.dsl._
   import html._
 
   private def config(lobby: LobbyActorRef) = {
 
-    val rootView = new RootView(
-      ctx.scope[ViewState](
-        read = { case RootState(_, appState) => appState },
-        write = { case (rootState, appState) => rootState.copy(viewState = appState) }
-      )
-    )
+    val rootView = new RootView(ctx)
 
     val eventsMediator = new EventsMediator(lobby)
 
-    KorolevServiceConfig[AppTask, RootState, ClientEvent](
-      stateLoader = StateLoader.default(RootState(isLoading = false, ViewState.Anonymous)),
+    KorolevServiceConfig[AppTask, ViewState, ClientEvent](
+      stateLoader = StateLoader.default(ViewState.Anonymous),
       extensions = List(eventsMediator),
       document = state =>
         optimize {
@@ -54,8 +49,7 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
               )
             ),
             body(
-              if (state.isLoading) cursor @= "wait" else void,
-              rootView.render(state.viewState)
+              rootView.render(state)
             )
           )
         }

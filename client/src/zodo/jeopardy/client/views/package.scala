@@ -5,5 +5,5 @@ import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 
 package object views {
-  type DocumentNode = Document.Node[Context.Binding[AppTask, RootState, ClientEvent]]
+  type DocumentNode = Document.Node[Context.Binding[AppTask, ViewState, ClientEvent]]
 }

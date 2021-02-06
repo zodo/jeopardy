@@ -7,7 +7,7 @@ import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.client.views.ViewState._
 
-class RootView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent])(implicit eff: Effect[AppTask]) {
+class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: Effect[AppTask]) {
 
   import levsha.dsl._
   import html._
@@ -17,8 +17,8 @@ class RootView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent
 
   private val inGameView = new InGameView(
     ctx.scope(
-      read = { case RootState(_, s: InGame) => s },
-      write = { case (s, inGame) => s.copy(viewState = inGame) }
+      read = { case s: InGame => s },
+      write = { case (s, inGame) => s }
     )
   )
 

@@ -7,7 +7,7 @@ import korolev.state.javaSerialization._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 
-class AuthorizedView(val ctx: Context.Scope[AppTask, RootState, ViewState, ClientEvent])(implicit
+class AuthorizedView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit
   eff: Effect[AppTask]
 ) {
 

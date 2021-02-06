@@ -2,23 +2,19 @@ package zodo.jeopardy.client.events
 
 import zio._
 import zio.actors._
-import zio.logging._
 import zio.duration._
+import zio.logging._
 import zodo.jeopardy.actors.GameActor
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage.{InAwaitingAnswer, InRound}
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.{PlayerHitTheButton, PlayerListUpdated, SimpleStage, StageUpdated}
-import zodo.jeopardy.actors.GameActor.PlayerActorRef
 import zodo.jeopardy.client.environment.AppEnv
-import zodo.jeopardy.client.views.RootState
 import zodo.jeopardy.client.views.ViewState.PlayerState.{ChoosesQuestion, Idle, ThinkingAboutAnswer}
 import zodo.jeopardy.client.views.ViewState._
 
 object GameActorListener {
 
   def handler(playerId: String, access: Access): Actor.Stateful[AppEnv, InGame, GameActor.OutgoingMessage] = {
-    def transformView(newState: InGame) = access.maybeTransition { case r @ RootState(_, _: InGame) =>
-      r.complete(newState)
-    }
+    def transformView(newState: InGame) = access.maybeTransition { case _: InGame => newState }
 
     new Actor.Stateful[AppEnv, InGame, GameActor.OutgoingMessage] {
 

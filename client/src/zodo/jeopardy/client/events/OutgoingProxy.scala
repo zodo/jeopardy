@@ -72,6 +72,8 @@ object OutgoingProxy {
             (game ! GameActor.InputMessage.ChooseQuestion(playerId, questionId)).as(state)
           case (State(_, Some(game)), ClientEvent.HitButton) =>
             (game ! GameActor.InputMessage.HitButton(playerId)).as(state)
+          case (State(_, Some(game)), ClientEvent.Answer(value)) =>
+            (game ! GameActor.InputMessage.Answer(playerId, value)).as(state)
           case s => log.error(s"unexpected transition OutgoingProxy <- $s").as(state)
 
         }

@@ -4,11 +4,14 @@ import korolev.Context
 import korolev.effect.Effect
 import ViewState._
 import levsha.events.EventPhase.AtTarget
+import zio.logging.log
 import zodo.jeopardy.actors.GameActor.OutgoingMessage.SimpleStage._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.Image
+
+import scala.concurrent.duration._
 
 class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent])(implicit eff: Effect[AppTask]) {
 
@@ -16,7 +19,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   import levsha.dsl._
   import html._
 
-  def render(s: ViewState.InGame): DocumentNode = s match {
+  def render(inGame: ViewState.InGame): DocumentNode = inGame match {
     case ViewState.InGame(gameId, hash, players, stage) =>
       optimize {
         div(
@@ -24,26 +27,43 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           players
             .map(renderPlayer),
           stage match {
-            case WaitingForStart     => renderWaitingForStart
-            case s: InRound          => renderInRound(s.round, s.takenQuestions)
-            case s: InQuestion       => renderInQuestion(hash, s.question)
-            case s: InAwaitingAnswer => renderInQuestion(hash, s.question)
+            case WaitingForStart => renderWaitingForStart
+            case s: InRound      => renderInRound(s.round, s.takenQuestions)
+            case s: InQuestion =>
+              div(
+                renderQuestion(hash, s.question),
+                renderIKnowButton
+              )
+            case s: InAwaitingAnswer =>
+              div(
+                renderQuestion(hash, s.question),
+                if (inGame.me.exists(_.id == s.activePlayer)) renderAnswerInput else void
+              )
+            case s: InShowAnswer => renderInAnswer(hash, s.answer)
           }
         )
       }
   }
 
-  private def renderPlayer(info: PlayerInfo) = {
-    val PlayerInfo(id, name, score, state, me, buttonPressed) = info
+  private def renderPlayer(info: PlayerInfo): DocumentNode = {
+    val PlayerInfo(id, name, score, state, me, buttonPressed, guess) = info
 
     div(
       ul(
         h3(
-          if (buttonPressed) backgroundColor @= "red" else void,
+          when(buttonPressed)(backgroundColor @= "red"),
           s"$name${if (me) "(its me!)" else ""} - $state"
         ),
         li(s"Id - $id"),
-        li(s"Score - $score")
+        li(s"Score - $score"),
+        guess match {
+          case Some(g) =>
+            li(
+              delay(5.seconds)(_.transition(_.withPlayers(_.id == id, _.copy(guess = None)))),
+              s"Guess - $g"
+            )
+          case None => void
+        }
       )
     )
   }
@@ -68,9 +88,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             td(theme.name),
             theme.questions.map(question =>
               td(
-                if (takenQuestions.contains(question.id))
-                  color @= "gray"
-                else void,
+                when(takenQuestions.contains(question.id))(color @= "gray"),
                 question.price.toString(),
                 event("click")(_.publish(ClientEvent.ChooseQuestion(question.id)))
               )
@@ -81,7 +99,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     )
   }
 
-  private def renderInQuestion(hash: String, question: PackModel.Question): DocumentNode = {
+  private def renderQuestion(hash: String, question: PackModel.Question): DocumentNode = {
     div(
       h2("Question"),
       question.fragments.map(fragment =>
@@ -95,7 +113,12 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             case _ => fragment.toString
           }
         )
-      ),
+      )
+    )
+  }
+
+  private def renderIKnowButton: DocumentNode = {
+    div(
       button(
         backgroundColor @= "green",
         autofocus := "true",
@@ -107,10 +130,29 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     )
   }
 
-  private def renderInAnswer(answer: PackModel.Answers) = {
+  private val answerInput = elementId()
+
+  private def renderAnswerInput: DocumentNode = {
     div(
-      h2("Answer"),
-      ul(answer.correct.map(a => li(a)))
+      input(
+        `type` := "text",
+        answerInput
+      ),
+      button(
+        "Submit answer",
+        event("click") { access =>
+          for {
+            answer <- access.valueOf(answerInput)
+            _      <- access.publish(ClientEvent.Answer(answer))
+          } yield ()
+        }
+      )
+    )
+  }
+
+  private def renderInAnswer(hash: String, answer: PackModel.Answers) = {
+    div(
+      h2(answer.correct.head)
     )
   }
 }

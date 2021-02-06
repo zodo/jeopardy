@@ -13,6 +13,9 @@ object ViewState {
     stage: GameActor.OutgoingMessage.SimpleStage
   ) extends ViewState {
     val me: Option[PlayerInfo] = players.find(_.me)
+    def withPlayers(mapOnly: PlayerInfo => Boolean, map: PlayerInfo => PlayerInfo): InGame = {
+      copy(players = players.map(p => if (mapOnly(p)) map(p) else p))
+    }
   }
 
   sealed trait PlayerState
@@ -28,6 +31,9 @@ object ViewState {
     score: Int,
     state: PlayerState,
     me: Boolean,
-    buttonPressed: Boolean = false
+    buttonPressed: Boolean = false,
+    guess: Option[PlayerGuess] = None
   )
+
+  case class PlayerGuess(answer: String, isCorrect: Boolean)
 }

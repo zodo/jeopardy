@@ -12,4 +12,5 @@ object ClientEvent {
   case class UploadFile(hash: String, pack: PackModel.Pack) extends ClientEvent
   case class ChooseQuestion(questionId: String) extends ClientEvent
   case object HitButton extends ClientEvent
+  case class Answer(value: String) extends ClientEvent
 }

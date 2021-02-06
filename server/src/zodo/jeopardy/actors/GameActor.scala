@@ -22,13 +22,16 @@ object GameActor {
     case object StartGame extends InputMessage[Unit]
     case class ChooseQuestion(playerId: String, questionId: String) extends InputMessage[Unit]
     case class HitButton(playerId: String) extends InputMessage[Unit]
+    case class Answer(playerId: String, answer: String) extends InputMessage[Unit]
   }
 
   sealed trait OutgoingMessage[+_]
   object OutgoingMessage {
-    case class PlayerListUpdated(players: Seq[Player]) extends OutgoingMessage[Unit]
+    case class NewPlayerConnected(player: Player) extends OutgoingMessage[Unit]
+    case class PlayerScoreUpdated(playerId: String, scoreDiff: Int) extends OutgoingMessage[Unit]
     case class PlayerHitTheButton(playerId: String, hit: Boolean = true) extends OutgoingMessage[Unit]
     case class StageUpdated(stage: SimpleStage) extends OutgoingMessage[Unit]
+    case class PlayerHasAnswer(playerId: String, answer: String, isCorrect: Boolean) extends OutgoingMessage[Unit]
 
     sealed trait SimpleStage
     object SimpleStage {
@@ -36,6 +39,7 @@ object GameActor {
       case class InRound(round: PackModel.Round, takenQuestions: Set[String], activePlayer: String) extends SimpleStage
       case class InQuestion(question: PackModel.Question) extends SimpleStage
       case class InAwaitingAnswer(question: PackModel.Question, activePlayer: String) extends SimpleStage
+      case class InShowAnswer(answer: PackModel.Answers) extends SimpleStage
     }
   }
 
@@ -62,6 +66,7 @@ object GameActor {
           case Idle                   => SimpleStage.InRound(round, takenQuestions, activePlayer)
           case Question(question)     => SimpleStage.InQuestion(question)
           case AwaitingAnswer(q, pId) => SimpleStage.InAwaitingAnswer(q, pId)
+          case ShowAnswer(answer)     => SimpleStage.InShowAnswer(answer)
         }
       }
 
@@ -69,7 +74,8 @@ object GameActor {
       object RoundStage {
         case object Idle extends RoundStage
         case class Question(question: PackModel.Question) extends RoundStage
-        case class AwaitingAnswer(question: PackModel.Question, activePlayer: String) extends RoundStage
+        case class AwaitingAnswer(question: PackModel.Question, answeringPlayer: String) extends RoundStage
+        case class ShowAnswer(answer: PackModel.Answers) extends RoundStage
       }
     }
 
@@ -100,12 +106,12 @@ object GameActor {
         case (_, JoinPlayer(id, name, reply)) =>
           for {
             _ <- log.debug(s"GameActor <- JoinPlayer($id, $name)")
-            newPlayers = state.players :+ PlayerContainer(Player(id, name, 0), reply)
-            event = OutgoingMessage.PlayerListUpdated(newPlayers.map(_.player))
+            playerContainer = PlayerContainer(Player(id, name, 0), reply)
+            event = OutgoingMessage.NewPlayerConnected(playerContainer.player)
             _ <- broadcast(event)
             _ <- reply ! event
             _ <- reply ! OutgoingMessage.StageUpdated(state.stage.toSimple)
-          } yield state.copy(players = newPlayers) -> ()
+          } yield state.copy(players = state.players :+ playerContainer) -> ()
         case (_, StartGame) =>
           for {
             _            <- log.debug(s"GameActor <- StartGame")
@@ -144,9 +150,48 @@ object GameActor {
             _ <- broadcast(OutgoingMessage.PlayerHitTheButton(playerId))
           } yield state -> ()
 
-        case (_, _: ChooseQuestion) => UIO(state -> ())
+        case (
+              State(_, _, r @ Round(_, _, _, AwaitingAnswer(question, answeringPlayer))),
+              Answer(playerId, answer)
+            ) if playerId == answeringPlayer =>
+          if (isCorrect(question.answers, answer)) {
+            val newState = withUpdatedPlayerScore(state, playerId, _ + question.price)
+              .copy(stage =
+                r.copy(
+                  takenQuestions = r.takenQuestions + question.id,
+                  stage = ShowAnswer(question.answers)
+                )
+              )
+            for {
+              _ <- broadcast(OutgoingMessage.PlayerHasAnswer(playerId, answer, isCorrect = true))
+              _ <- broadcast(OutgoingMessage.PlayerScoreUpdated(playerId, question.price))
+              _ <- broadcast(OutgoingMessage.StageUpdated(newState.stage.toSimple))
+            } yield newState -> ()
+          } else {
+            val newState = withUpdatedPlayerScore(state, playerId, _ - question.price)
+              .copy(stage = r.copy(stage = Question(question)))
+            for {
+              _ <- broadcast(OutgoingMessage.PlayerHasAnswer(playerId, answer, isCorrect = false))
+              _ <- broadcast(OutgoingMessage.PlayerScoreUpdated(playerId, -question.price))
+              _ <- broadcast(OutgoingMessage.StageUpdated(newState.stage.toSimple))
+            } yield newState -> ()
+          }
+
+        case s => log.error(s"unexpected GameActor <- $s").as(state -> ().asInstanceOf[A])
       }
     }
+  }
+
+  private def isCorrect(correctAnswer: PackModel.Answers, actualAnswer: String) = {
+    val sanitize = (_: String).replaceAll("[^\\p{L}\\p{N}]+", "").toLowerCase
+
+    correctAnswer.correct.map(sanitize).contains(sanitize(actualAnswer))
+  }
+
+  private def withUpdatedPlayerScore(state: State, playerId: String, score: Int => Int) = {
+    val newPlayers = state.players
+      .map(p => if (p.player.id == playerId) p.copy(player = p.player.copy(score = score(p.player.score))) else p)
+    state.copy(players = newPlayers)
   }
 
 }

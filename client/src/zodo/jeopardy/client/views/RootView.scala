@@ -2,7 +2,6 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
-import levsha.Document
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.client.views.ViewState._
@@ -18,7 +17,7 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
   private val inGameView = new InGameView(
     ctx.scope(
       read = { case s: InGame => s },
-      write = { case (s, inGame) => s }
+      write = { case (s, inGame) => inGame }
     )
   )
 

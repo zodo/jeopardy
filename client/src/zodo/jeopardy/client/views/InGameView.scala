@@ -29,11 +29,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           stage match {
             case WaitingForStart => renderWaitingForStart
             case s: InRound      => renderInRound(s.round, s.takenQuestions)
-            case s: InQuestion =>
-              div(
-                renderQuestion(hash, s.question),
-                renderIKnowButton
-              )
+            case s: InQuestion   => renderQuestion(hash, s.question)
             case s: InAwaitingAnswer =>
               div(
                 renderQuestion(hash, s.question),
@@ -51,6 +47,14 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     div(
       ul(
         h3(
+          if (buttonPressed) {
+            delay(1.seconds)(access =>
+              for {
+                _ <- log.debug(s"Transitioning $name to false")
+                _ <- access.transition(_.withPlayers(_.id == id, _.copy(buttonPressed = false)))
+              } yield ()
+            )
+          } else void,
           when(buttonPressed)(backgroundColor @= "red"),
           s"$name${if (me) "(its me!)" else ""} - $state"
         ),
@@ -113,19 +117,16 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             case _ => fragment.toString
           }
         )
-      )
-    )
-  }
-
-  private def renderIKnowButton: DocumentNode = {
-    div(
-      button(
-        backgroundColor @= "green",
-        autofocus := "true",
-        "I know!",
-        event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
-        event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
-        event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
+      ),
+      div(
+        button(
+          backgroundColor @= "green",
+          autofocus := "true",
+          "I know!",
+          event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+          event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+          event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
+        )
       )
     )
   }

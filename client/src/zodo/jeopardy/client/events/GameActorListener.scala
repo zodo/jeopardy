@@ -20,7 +20,7 @@ import zodo.jeopardy.client.views.ViewState._
 
 object GameActorListener {
 
-  def handler(playerId: String, access: Access): Actor.Stateful[AppEnv, InGame, GameActor.OutgoingMessage] = {
+  def handler(ownerPlayerId: String, access: Access): Actor.Stateful[AppEnv, InGame, GameActor.OutgoingMessage] = {
     new Actor.Stateful[AppEnv, InGame, GameActor.OutgoingMessage] {
 
       override def receive[A](
@@ -37,7 +37,7 @@ object GameActorListener {
                 name = p.name,
                 score = p.score,
                 state = calculatePlayerState(p.id, state.stage),
-                me = playerId == p.id
+                me = ownerPlayerId == p.id
               )
               newState = state.copy(players = state.players :+ newPlayer)
               _ <- access.transition(_ => newState)
@@ -56,15 +56,13 @@ object GameActorListener {
               _ <- access.transition(_ => newState)
             } yield newState
 
-          case PlayerHitTheButton(playerId, hit) =>
-            val newState = state.withPlayers(_.id == playerId, _.copy(buttonPressed = hit))
-
+          case PlayerHitTheButton(playerId) =>
+            val newState = state.withPlayers(_.id == playerId, _.copy(buttonPressed = true))
             for {
-              _    <- log.debug(s"GameActorListener <- PlayerHitTheButton($hit, $playerId")
-              _    <- access.transition(_ => newState)
-              self <- context.self[GameActor.OutgoingMessage]
-              _    <- (self ! PlayerHitTheButton(playerId, hit = false)).delay(1.second).when(hit).fork
+              _ <- log.debug(s"GameActorListener <- PlayerHitTheButton($playerId")
+              _ <- access.transition(_ => newState)
             } yield newState
+
           case PlayerHasAnswer(playerId, answer, isCorrect) =>
             val newState =
               state.withPlayers(_.id == playerId, _.copy(guess = Some(PlayerGuess(answer, isCorrect))))

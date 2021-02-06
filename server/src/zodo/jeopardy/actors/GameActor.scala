@@ -29,7 +29,7 @@ object GameActor {
   object OutgoingMessage {
     case class NewPlayerConnected(player: Player) extends OutgoingMessage[Unit]
     case class PlayerScoreUpdated(playerId: String, scoreDiff: Int) extends OutgoingMessage[Unit]
-    case class PlayerHitTheButton(playerId: String, hit: Boolean = true) extends OutgoingMessage[Unit]
+    case class PlayerHitTheButton(playerId: String) extends OutgoingMessage[Unit]
     case class StageUpdated(stage: SimpleStage) extends OutgoingMessage[Unit]
     case class PlayerHasAnswer(playerId: String, answer: String, isCorrect: Boolean) extends OutgoingMessage[Unit]
 
@@ -107,9 +107,10 @@ object GameActor {
           for {
             _ <- log.debug(s"GameActor <- JoinPlayer($id, $name)")
             playerContainer = PlayerContainer(Player(id, name, 0), reply)
-            event = OutgoingMessage.NewPlayerConnected(playerContainer.player)
-            _ <- broadcast(event)
-            _ <- reply ! event
+            _ <- broadcast(OutgoingMessage.NewPlayerConnected(playerContainer.player))
+            _ <- ZIO.foreach_(state.players :+ playerContainer) { p =>
+              reply ! OutgoingMessage.NewPlayerConnected(p.player)
+            }
             _ <- reply ! OutgoingMessage.StageUpdated(state.stage.toSimple)
           } yield state.copy(players = state.players :+ playerContainer) -> ()
         case (_, StartGame) =>

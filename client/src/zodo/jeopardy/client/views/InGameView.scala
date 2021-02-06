@@ -135,13 +135,15 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
 
   private def renderAnswerInput: DocumentNode = {
     div(
-      input(
-        `type` := "text",
-        answerInput
-      ),
-      button(
-        "Submit answer",
-        event("click") { access =>
+      form(
+        input(
+          `type` := "text",
+          answerInput
+        ),
+        button(
+          "Submit answer"
+        ),
+        event("submit") { access =>
           for {
             answer <- access.valueOf(answerInput)
             _      <- access.publish(ClientEvent.GiveAnswer(answer))

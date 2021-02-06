@@ -49,15 +49,13 @@ object OutgoingProxy {
               newState <- maybeGame match {
                 case Some(GameEntry(gameId, packId, game)) =>
                   for {
-
-                    newViewState <- UIO(InGame(gameId, packId, Nil, WaitingForStart))
                     gameListener <- context.make(
                       s"game-listener-$playerId",
                       actors.Supervisor.none,
-                      newViewState,
+                      (),
                       GameActorListener.handler(playerId, access)
                     )
-                    _ <- access.transition(_ => newViewState)
+                    _ <- access.transition(_ => InGame(gameId, packId, Nil, WaitingForStart))
                     _ <- game ! GameActor.InputMessage.JoinPlayer(playerId, playerName, gameListener)
                   } yield state.copy(game = Some(game))
                 case None =>

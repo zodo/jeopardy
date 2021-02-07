@@ -30,10 +30,10 @@ object GameActor {
     object Stage {
       case object BeforeStart extends Stage
       case class Round(
+        stage: RoundStage,
         round: PackModel.Round,
         takenQuestions: Set[String],
-        activePlayer: String,
-        stage: RoundStage
+        activePlayer: String
       ) extends Stage
 
       sealed trait RoundStage
@@ -57,130 +57,158 @@ object GameActor {
 
   def initState(pack: PackModel.Pack): State = State(pack, Seq(), BeforeStart, None)
 
-  val handler = new Actor.Stateful[Env, State, GameCommand] {
-
+  val handler: Actor.Stateful[Env, State, GameCommand] = new Actor.Stateful[Env, State, GameCommand] {
     override def receive[A](state: State, msg: GameCommand[A], context: Context): RIO[Env, (State, A)] = {
-      def broadcast(m: GameEvent[Unit]) = ZIO.foreachPar(state.players)(p => p.reply ! m)
-      def setCountdown[R](seconds: Int)(atTheEnd: RIO[R, Unit]): URIO[R with Clock, CountdownFiber] = {
-        ZIO
-          .foreach_(0 until seconds) { tick =>
-            for {
-              _ <- broadcast(CountdownUpdated(Some(Countdown(tick, seconds))))
-              _ <- ZIO.sleep(1.second)
-            } yield ()
-          } *>
-          atTheEnd
-      }.fork
-      val stopCountdown = ZIO.fromOption(state.countdown).flatMap(_.interrupt).ignore
+      val onReceive = new OnReceive(state, msg, context)
 
+      for {
+        _        <- log.debug(s"GameActor <- $msg")
+        newState <- onReceive.handle
+      } yield newState -> ().asInstanceOf[A]
+    }
+  }
+
+  private class OnReceive(state: State, msg: GameCommand[_], context: Context) {
+
+    def handle: RIO[Env, State] =
       (state.stage, msg) match {
-        case (_, AddPlayer(id, name, reply)) =>
-          for {
-            _ <- log.debug(s"GameActor <- JoinPlayer($id, $name)")
-            player = Player(id, name, 0, reply)
-            _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
-            _ <- ZIO.foreach_(state.players :+ player) { p =>
-              reply ! GameEvent.PlayerAdded(p.toMessage)
-            }
-            _ <- reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
-          } yield state.copy(players = state.players :+ player) -> ()
-        case (_, Start) =>
-          for {
-            _            <- log.debug(s"GameActor <- StartGame")
-            activePlayer <- nextIntBounded(state.players.size).map(idx => state.players(idx))
-            newStage = Round(state.pack.rounds.head, Set(), activePlayer.id, Idle)
-            _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
-          } yield state.copy(stage = newStage) -> ()
+        case (_, m: AddPlayer)                                   => handleAddPlayer(m)
+        case (_, Start)                                          => handleStart
+        case (r @ Round(Idle, _, _, _), m: SelectQuestion)       => handleSelectQuestion(r, m)
+        case (r @ Round(Question(q), _, _, _), HitButton(pId))   => handleHitButton(r, q, pId)
+        case (Round(_: AwaitingAnswer, _, _, _), HitButton(pId)) => handleMissHitButton(pId)
+        case (r @ Round(AwaitingAnswer(q, apId), _, _, _), GiveAnswer(pId, a)) if pId == apId =>
+          handleGiveAnswer(r, q, pId, a)
+        case (r: Round, m: ShowAnswer) => handleShowAnswer(r, m)
+        case (r: Round, ReturnToRound) => handleReturnToRound(r)
 
-        case (r @ Round(round, taken, activePlayer, Idle), SelectQuestion(playerId, questionId)) =>
-          (for {
-            _        <- log.debug(s"GameActor <- ChooseQuestion($questionId)")
-            question <- ZIO.fromOption(round.themes.flatMap(_.questions).find(_.id == questionId))
-            _        <- ZIO.fail(()).when(taken.contains(questionId))
-            _        <- ZIO.fail(()).when(activePlayer != playerId)
-            newStage = r.copy(stage = Question(question))
-            _         <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
-            self      <- context.self[GameCommand]
-            countdown <- setCountdown(10)(self ! ShowAnswer(question, onTimeout = true))
-          } yield state.copy(stage = newStage, countdown = Some(countdown)) -> ()).catchAll(_ => UIO(state -> ()))
+        case s => log.error(s"Unexpected message $msg for state $state").as(state)
+      }
 
-        case (r @ Round(_, _, _, Question(question)), HitButton(playerId)) =>
-          for {
-            _ <- stopCountdown
-            _ <- broadcast(GameEvent.PlayerHitTheButton(playerId))
-            newStage = r.copy(stage = AwaitingAnswer(question, playerId))
-            _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
-          } yield state.copy(stage = newStage, countdown = None) -> ()
+    private def handleAddPlayer(m: AddPlayer) = {
+      val player = Player(m.id, m.name, 0, m.reply)
+      for {
+        _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
+        _ <- ZIO.foreach_(state.players :+ player) { p =>
+          player.reply ! GameEvent.PlayerAdded(p.toMessage)
+        }
+        _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
+      } yield state.copy(players = state.players :+ player)
+    }
 
-        case (Round(_, _, _, _: AwaitingAnswer), HitButton(playerId)) =>
-          for {
-            _ <- broadcast(GameEvent.PlayerHitTheButton(playerId))
-          } yield state -> ()
+    private def handleStart = {
+      for {
+        randomActivePlayer <- nextIntBounded(state.players.size).map(idx => state.players(idx))
+        newStage = Round(Idle, state.pack.rounds.head, Set(), randomActivePlayer.id)
+        _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
+      } yield state.copy(stage = newStage)
+    }
 
-        case (r @ Round(_, _, _, AwaitingAnswer(question, answeringPlayer)), GiveAnswer(playerId, answer))
-            if playerId == answeringPlayer =>
-          if (isCorrect(question.answers, answer)) {
-            val newState = withUpdatedPlayerScore(state, playerId, _ + question.price)
-              .copy(stage =
-                r.copy(
-                  takenQuestions = r.takenQuestions + question.id,
-                  activePlayer = playerId
-                )
-              )
-            for {
-              _    <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = true))
-              _    <- broadcast(GameEvent.PlayerScoreUpdated(playerId, question.price))
-              self <- context.self[GameCommand]
-              _    <- self ! ShowAnswer(question)
-            } yield newState -> ()
-          } else {
-            val newState = withUpdatedPlayerScore(state, playerId, _ - question.price)
-              .copy(stage = r.copy(stage = Question(question)))
-            for {
-              _ <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = false))
-              _ <- broadcast(GameEvent.PlayerScoreUpdated(playerId, -question.price))
-              _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newState.stage)))
-            } yield newState -> ()
-          }
+    private def handleSelectQuestion(r: Round, m: SelectQuestion) = {
+      (
+        for {
+          question <- ZIO.fromOption(r.round.themes.flatMap(_.questions).find(_.id == m.questionId))
+          _        <- ZIO.fail(()).when(r.takenQuestions.contains(m.questionId))
+          _        <- ZIO.fail(()).when(r.activePlayer != m.playerId)
+          newStage = r.copy(stage = Question(question))
+          _         <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
+          self      <- context.self[GameCommand]
+          countdown <- setCountdown(10)(self ! ShowAnswer(question, onTimeout = true))
+        } yield state.copy(stage = newStage, countdown = Some(countdown))
+      ).orElseSucceed(state)
+    }
 
-        case (r @ Round(_, _, _, stage), ShowAnswer(question, onTimeout)) =>
-          def updateState = {
-            val newStage = r.copy(takenQuestions = r.takenQuestions + question.id, stage = Answer(question.answers))
-            for {
-              _    <- stopCountdown
-              _    <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
-              self <- context.self[GameCommand]
-              _    <- (self ! ReturnToRound).delay(5.second).fork
-            } yield state.copy(stage = newStage, countdown = None) -> ()
-          }
+    private def handleHitButton(r: Round, question: PackModel.Question, playerId: String) = {
+      for {
+        _ <- stopCountdown
+        _ <- broadcast(GameEvent.PlayerHitTheButton(playerId))
+        newStage = r.copy(stage = AwaitingAnswer(question, playerId))
+        _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
+      } yield state.copy(stage = newStage, countdown = None)
+    }
 
-          (stage, onTimeout) match {
-            case (_: AwaitingAnswer, false) => updateState
-            case (_: Question, true)        => updateState
-            case _                          => UIO(state -> ())
-          }
+    private def handleMissHitButton(playerId: String) = {
+      for {
+        _ <- broadcast(GameEvent.PlayerHitTheButton(playerId))
+      } yield state
+    }
 
-        case (r @ Round(round, tq, ap, _), ReturnToRound) =>
-          val haveMoreQuestions = round.themes.flatMap(_.questions).size > tq.size
-          val newStage = if (haveMoreQuestions) {
-            r.copy(stage = Idle)
-          } else {
-            val haveMoreRounds = state.pack.rounds.last.id == round.id
-            if (haveMoreRounds) {
-              val newRound = state.pack.rounds(state.pack.rounds.indexWhere(_.id == round.id) + 1)
-              Round(newRound, Set(), ap, Idle)
-            } else {
-              ???
-            }
-          }
-
-          for {
-            _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
-          } yield state.copy(stage = newStage) -> ()
-
-        case s => log.error(s"unexpected GameActor <- $s").as(state -> ().asInstanceOf[A])
+    private def handleGiveAnswer(r: Round, question: PackModel.Question, playerId: String, answer: String) = {
+      if (isCorrect(question.answers, answer)) {
+        val newState = withUpdatedPlayerScore(state, playerId, _ + question.price)
+          .copy(stage =
+            r.copy(
+              takenQuestions = r.takenQuestions + question.id,
+              activePlayer = playerId
+            )
+          )
+        for {
+          _    <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = true))
+          _    <- broadcast(GameEvent.PlayerScoreUpdated(playerId, question.price))
+          self <- context.self[GameCommand]
+          _    <- self ! ShowAnswer(question)
+        } yield newState
+      } else {
+        val newState = withUpdatedPlayerScore(state, playerId, _ - question.price)
+          .copy(stage = r.copy(stage = Question(question)))
+        for {
+          _    <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = false))
+          _    <- broadcast(GameEvent.PlayerScoreUpdated(playerId, -question.price))
+          _    <- broadcast(GameEvent.StageUpdated(toSnapshot(newState.stage)))
+          self <- context.self[GameCommand]
+          cd   <- setCountdown(10)(self ! ShowAnswer(question))
+        } yield newState.copy(countdown = Some(cd))
       }
     }
+
+    private def handleShowAnswer(round: Round, msg: ShowAnswer) = {
+      (round.stage, msg.onTimeout) match {
+        case (_: AwaitingAnswer, false) | (_: Question, true) =>
+          val newStage =
+            round.copy(takenQuestions = round.takenQuestions + msg.question.id, stage = Answer(msg.question.answers))
+          for {
+            _    <- stopCountdown
+            _    <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
+            self <- context.self[GameCommand]
+            _    <- (self ! ReturnToRound).delay(3.second).fork
+          } yield state.copy(stage = newStage, countdown = None)
+        case _ => UIO(state)
+      }
+    }
+
+    private def handleReturnToRound(r: Round) = {
+      val haveMoreQuestions = r.round.themes.flatMap(_.questions).size > r.takenQuestions.size
+      val newStage = if (haveMoreQuestions) {
+        r.copy(stage = Idle)
+      } else {
+        val haveMoreRounds = state.pack.rounds.last.id != r.round.id
+        if (haveMoreRounds) {
+          val newRound = state.pack.rounds(state.pack.rounds.indexWhere(_.id == r.round.id) + 1)
+          Round(Idle, newRound, Set(), r.activePlayer)
+        } else {
+          Round(Idle, state.pack.rounds.head, Set(), r.activePlayer)
+        }
+      }
+
+      for {
+        _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
+      } yield state.copy(stage = newStage)
+    }
+
+    private def broadcast(m: GameEvent[Unit]) = ZIO.foreachPar(state.players)(p => p.reply ! m)
+
+    private def setCountdown[R](seconds: Int)(afterCountdown: RIO[R, Unit]): URIO[R with Clock, CountdownFiber] = {
+      ZIO
+        .foreach_(0 until seconds) { tick =>
+          for {
+            _ <- broadcast(CountdownUpdated(Some(Countdown(tick, seconds))))
+            _ <- ZIO.sleep(1.second)
+          } yield ()
+        } *>
+        broadcast(CountdownUpdated(None)) *>
+        afterCountdown
+    }.fork
+    private val stopCountdown = ZIO.fromOption(state.countdown).flatMap(_.interrupt).ignore
   }
 
   private def isCorrect(correctAnswer: PackModel.Answers, actualAnswer: String) = {

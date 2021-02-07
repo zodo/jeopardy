@@ -53,7 +53,7 @@ object OutgoingProxy {
                       (),
                       GameActorListener.handler(playerId, access)
                     )
-                    _ <- access.transition(_ => InGame(gameId, packId, Nil, BeforeStart))
+                    _ <- access.transition(_ => InGame(gameId, packId, Nil, BeforeStart, None))
                     _ <- game ! GameCommand.AddPlayer(playerId, playerName, gameListener)
                   } yield state.copy(game = Some(game))
                 case None =>

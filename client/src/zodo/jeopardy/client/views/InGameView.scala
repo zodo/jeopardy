@@ -20,7 +20,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   import html._
 
   def render(inGame: ViewState.InGame): DocumentNode = inGame match {
-    case ViewState.InGame(gameId, hash, players, stage) =>
+    case ViewState.InGame(gameId, hash, players, stage, countdown) =>
       optimize {
         div(
           h2(s"In game '$gameId' with pack $hash"),
@@ -29,10 +29,10 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           stage match {
             case BeforeStart => renderWaitingForStart
             case s: Round    => renderInRound(s.round, s.takenQuestions)
-            case s: Question => renderQuestion(hash, s.question)
+            case s: Question => renderQuestion(hash, s.question, countdown)
             case s: AnswerAttempt =>
               div(
-                renderQuestion(hash, s.question),
+                renderQuestion(hash, s.question, countdown),
                 if (inGame.me.exists(_.id == s.activePlayer)) renderAnswerInput else void
               )
             case s: Answer => renderInAnswer(hash, s.answer)
@@ -103,7 +103,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     )
   }
 
-  private def renderQuestion(hash: String, question: PackModel.Question): DocumentNode = {
+  private def renderQuestion(hash: String, question: PackModel.Question, countdown: Option[Countdown]): DocumentNode = {
     div(
       h2("Question"),
       question.fragments.map(fragment =>
@@ -118,6 +118,14 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           }
         )
       ),
+      countdown match {
+        case Some(c) =>
+          progress(
+            max := c.max.toString,
+            value := c.remaining.toString
+          )
+        case None => void
+      },
       div(
         button(
           backgroundColor @= "green",

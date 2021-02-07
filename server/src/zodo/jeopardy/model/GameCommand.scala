@@ -10,4 +10,5 @@ object GameCommand {
   case class HitButton(playerId: String) extends GameCommand[Unit]
   case class GiveAnswer(playerId: String, answer: String) extends GameCommand[Unit]
   case object ReturnToRound extends GameCommand[Unit]
+  case class ShowAnswer(question: PackModel.Question, onTimeout: Boolean = false) extends GameCommand[Unit]
 }

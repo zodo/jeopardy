@@ -10,7 +10,8 @@ object ViewState {
     id: String,
     packId: String,
     players: Seq[PlayerInfo],
-    stage: StageSnapshot
+    stage: StageSnapshot,
+    countdown: Option[Countdown]
   ) extends ViewState {
     val me: Option[PlayerInfo] = players.find(_.me)
     def withPlayers(mapOnly: PlayerInfo => Boolean, map: PlayerInfo => PlayerInfo): InGame = {
@@ -36,4 +37,8 @@ object ViewState {
   )
 
   case class PlayerGuess(answer: String, isCorrect: Boolean)
+
+  case class Countdown(value: Int, max: Int) {
+    val remaining = max - value
+  }
 }

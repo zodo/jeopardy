@@ -26,6 +26,14 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           h2(s"In game '$gameId' with pack $hash"),
           players
             .map(renderPlayer),
+          countdown match {
+            case Some(c) =>
+              progress(
+                max := c.max.toString,
+                value := c.remaining.toString
+              )
+            case None => void
+          },
           stage match {
             case BeforeStart => renderWaitingForStart
             case s: Round    => renderInRound(s.round, s.takenQuestions)
@@ -52,7 +60,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             delay(1.seconds)(access =>
               for {
                 _ <- log.debug(s"Transitioning $name to false")
-                _ <- access.transition(_.withPlayers(_.id == id, _.copy(buttonPressed = false)))
+                _ <- access.syncTransition(_.withPlayers(_.id == id, _.copy(buttonPressed = false)))
               } yield ()
             )
           } else void,
@@ -63,7 +71,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
         guess match {
           case Some(g) =>
             li(
-              delay(5.seconds)(_.transition(_.withPlayers(_.id == id, _.copy(guess = None)))),
+              delay(5.seconds)(_.syncTransition(_.withPlayers(_.id == id, _.copy(guess = None)))),
               s"Guess - $g"
             )
           case None => void
@@ -118,14 +126,6 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           }
         )
       ),
-      countdown match {
-        case Some(c) =>
-          progress(
-            max := c.max.toString,
-            value := c.remaining.toString
-          )
-        case None => void
-      },
       div(
         button(
           backgroundColor @= "green",

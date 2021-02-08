@@ -1,5 +1,6 @@
 package zodo.jeopardy.model
 
+import zodo.jeopardy.actors.GameActor.CountdownId
 import zodo.jeopardy.actors.PlayerActorRef
 
 sealed trait GameCommand[+_]
@@ -10,5 +11,8 @@ object GameCommand {
   case class HitButton(playerId: String) extends GameCommand[Unit]
   case class GiveAnswer(playerId: String, answer: String) extends GameCommand[Unit]
   case object ReturnToRound extends GameCommand[Unit]
-  case class ShowAnswer(question: PackModel.Question, onTimeout: Boolean = false) extends GameCommand[Unit]
+  case class ShowAnswer(question: PackModel.Question) extends GameCommand[Unit]
+  case class TickCountdown(tick: Int, id: CountdownId) extends GameCommand[Unit]
+  case object ChooseRandomQuestion extends GameCommand[Unit]
+  case object PlayerDontKnowAnswer extends GameCommand[Unit]
 }

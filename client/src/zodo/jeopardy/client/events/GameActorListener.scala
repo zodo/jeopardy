@@ -21,8 +21,8 @@ object GameActorListener {
         context: actors.Context
       ): RIO[AppEnv, (Unit, A)] = {
         for {
-          _     <- log.debug(s"GameActorListener <- $msg")
           state <- access.state.collect(new Throwable("not in game")) { case s: InGame => s }
+          _     <- log.debug(s"'${state.me.map(_.name)}' - GameActorListener <- $msg")
 
           _ <- msg match {
             case PlayerAdded(p) =>

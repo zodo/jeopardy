@@ -47,11 +47,17 @@ object OutgoingProxy {
               newState <- maybeGame match {
                 case Some(GameEntry(gameId, packId, game)) =>
                   for {
+                    stateUpdater <- context.make(
+                      s"state-updater-$playerId",
+                      actors.Supervisor.none,
+                      (),
+                      ViewStateUpdaterActor.handler(access)
+                    )
                     gameListener <- context.make(
                       s"game-listener-$playerId",
                       actors.Supervisor.none,
                       (),
-                      GameActorListener.handler(playerId, access)
+                      GameActorListener.handler(playerName, playerId, stateUpdater)
                     )
                     _ <- access.transition(_ => InGame(gameId, packId, Nil, BeforeStart, None))
                     _ <- game ! GameCommand.AddPlayer(playerId, playerName, gameListener)

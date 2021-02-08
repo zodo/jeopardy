@@ -2,8 +2,10 @@ package zodo.jeopardy.client.events
 
 import zio._
 import zio.actors._
+import zio.duration.durationInt
 import zio.logging._
 import zodo.jeopardy.client.environment.AppEnv
+import zodo.jeopardy.client.events.ViewStateUpdaterActor.{UpdateGame, ViewStateUpdaterActorRef}
 import zodo.jeopardy.client.views.ViewState
 import zodo.jeopardy.client.views.ViewState.PlayerState.{ChoosesQuestion, Idle, ThinkingAboutAnswer}
 import zodo.jeopardy.client.views.ViewState._
@@ -12,7 +14,11 @@ import zodo.jeopardy.model.{GameEvent, StageSnapshot}
 
 object GameActorListener {
 
-  def handler(ownerPlayerId: String, access: Access): Actor.Stateful[AppEnv, Unit, GameEvent] = {
+  def handler(
+    playerName: String,
+    ownerPlayerId: String,
+    updater: ViewStateUpdaterActorRef
+  ): Actor.Stateful[AppEnv, Unit, GameEvent] = {
     new Actor.Stateful[AppEnv, Unit, GameEvent] {
 
       override def receive[A](
@@ -21,43 +27,48 @@ object GameActorListener {
         context: actors.Context
       ): RIO[AppEnv, (Unit, A)] = {
         for {
-          state <- access.state.collect(new Throwable("not in game")) { case s: InGame => s }
-          _     <- log.debug(s"'${state.me.map(_.name)}' - GameActorListener <- $msg")
+          _ <- log.debug(s"'$playerName' - GameActorListener <- $msg")
 
           _ <- msg match {
             case PlayerAdded(p) =>
-              val newPlayer = PlayerInfo(
-                id = p.id,
-                name = p.name,
-                score = 0,
-                state = calculatePlayerState(p.id, state.stage),
-                me = ownerPlayerId == p.id
-              )
-              val newState = state.copy(players = state.players :+ newPlayer)
-              access.syncTransition(_ => newState)
+              updater ! UpdateGame(state => {
+                val newPlayer = PlayerInfo(
+                  id = p.id,
+                  name = p.name,
+                  score = 0,
+                  state = calculatePlayerState(p.id, state.stage),
+                  me = ownerPlayerId == p.id
+                )
+                state.copy(players = state.players :+ newPlayer)
+              })
 
             case PlayerScoreUpdated(p, diff) =>
-              val newState = state.withPlayers(_.id == p, p => p.copy(score = p.score + diff))
-              access.syncTransition(_ => newState)
+              updater ! UpdateGame(_.withPlayers(_.id == p, p => p.copy(score = p.score + diff)))
 
             case StageUpdated(stage) =>
-              val players = state.players.map(p => p.copy(state = calculatePlayerState(p.id, stage)))
-              val newState = state.copy(players = players, stage = stage)
-              access.syncTransition(_ => newState)
+              updater ! UpdateGame(state => {
+                val players = state.players.map(p => p.copy(state = calculatePlayerState(p.id, stage)))
+                state.copy(players = players, stage = stage)
+              })
 
             case PlayerHitTheButton(playerId) =>
-              val newState = state.withPlayers(_.id == playerId, _.copy(buttonPressed = true))
-              access.syncTransition(_ => newState)
+              def withButtonPressed(p: Boolean) =
+                updater ! UpdateGame(_.withPlayers(_.id == playerId, _.copy(buttonPressed = p)))
+              for {
+                _ <- withButtonPressed(true)
+                _ <- withButtonPressed(false).delay(1.second).fork
+              } yield ()
 
             case PlayerGaveAnswer(playerId, answer, isCorrect) =>
-              val newState = state
-                .withPlayers(_.id == playerId, _.copy(guess = Some(PlayerGuess(answer, isCorrect))))
-              access.syncTransition(_ => newState)
+              def withGuess(g: Option[PlayerGuess]) =
+                updater ! UpdateGame(_.withPlayers(_.id == playerId, _.copy(guess = g)))
+              for {
+                _ <- withGuess(Some(PlayerGuess(answer, isCorrect)))
+                _ <- withGuess(None).delay(2.seconds).fork
+              } yield ()
 
             case CountdownUpdated(v) =>
-              val newState = state.copy(countdown = v.map(v => ViewState.Countdown(v.value, v.max)))
-              access.syncTransition(_ => newState)
-
+              updater ! UpdateGame(_.copy(countdown = v.map(v => ViewState.Countdown(v.value, v.max))))
           }
 
         } yield () -> ().asInstanceOf[A]

@@ -56,25 +56,13 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
       title := s"Id - $id",
       ul(
         h3(
-          if (buttonPressed) {
-            delay(1.seconds)(access =>
-              for {
-                _ <- log.debug(s"Transitioning $name to false")
-                _ <- access.syncTransition(_.withPlayers(_.id == id, _.copy(buttonPressed = false)))
-              } yield ()
-            )
-          } else void,
           when(buttonPressed)(backgroundColor @= "red"),
           s"$name${if (me) "(its me!)" else ""} - $state"
         ),
         li(s"Score - $score"),
         guess match {
-          case Some(g) =>
-            li(
-              delay(5.seconds)(_.syncTransition(_.withPlayers(_.id == id, _.copy(guess = None)))),
-              s"Guess - $g"
-            )
-          case None => void
+          case Some(g) => li(s"Guess - $g")
+          case None    => void
         }
       )
     )

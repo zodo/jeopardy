@@ -23,7 +23,11 @@ final class EventsMediator(lobby: LobbyActorRef)(implicit
       )
     } yield {
       Extension.Handlers[AppTask, ViewState, ClientEvent](
-        onDestroy = () => sessionProxyActor.stop.unit,
+        onDestroy = () =>
+          for {
+            _ <- sessionProxyActor ? ClientEvent.Leave
+            _ <- sessionProxyActor.stop
+          } yield (),
         onMessage = message => sessionProxyActor ! message
       )
     }

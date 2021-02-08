@@ -33,7 +33,8 @@ object ViewState {
     state: PlayerState,
     me: Boolean,
     buttonPressed: Boolean = false,
-    guess: Option[PlayerGuess] = None
+    guess: Option[PlayerGuess] = None,
+    disconnected: Boolean = false
   )
 
   case class PlayerGuess(answer: String, isCorrect: Boolean)

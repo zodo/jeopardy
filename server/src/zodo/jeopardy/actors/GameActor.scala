@@ -71,7 +71,8 @@ object GameActor {
       id: String,
       name: String,
       score: Int,
-      reply: PlayerActorRef
+      reply: PlayerActorRef,
+      disconnected: Boolean = false
     ) {
       def toMessage: GameEvent.Player = GameEvent.Player(id, name)
     }
@@ -104,6 +105,7 @@ object GameActor {
     def handle: RIO[Env, State] =
       (state.stage, msg) match {
         case (_, m: AddPlayer)                                   => handleAddPlayer(m)
+        case (_, DisconnectPlayer(playerId))                     => handlePlayerDisconnect(playerId)
         case (_, Start)                                          => handleStart
         case (r @ Round(Idle(cd), _, _, _), m: SelectQuestion)   => handleSelectQuestion(r, m, cd)
         case (r @ Round(q: Question, _, _, _), HitButton(pId))   => handleHitButton(r, q, pId)
@@ -123,15 +125,29 @@ object GameActor {
       for {
         _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
         _ <- ZIO.foreach_(state.players :+ player) { p =>
-          player.reply ! GameEvent.PlayerAdded(p.toMessage)
+          (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
+            ((player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected))
         }
         _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
       } yield state.copy(players = state.players :+ player)
     }
 
+    private def handlePlayerDisconnect(playerId: String) = {
+      val idx = state.players.indexWhere(_.id == playerId)
+      if (idx < 0) {
+        UIO(state)
+      } else {
+        val player = state.players(idx)
+        for {
+          _ <- broadcast(GameEvent.PlayerDisconnected(playerId))
+        } yield state.copy(players = state.players.updated(idx, player.copy(disconnected = true)))
+      }
+    }
+
     private def handleStart = {
+      val alivePlayers = state.players.filterNot(_.disconnected)
       for {
-        randomActivePlayer <- nextIntBounded(state.players.size).map(idx => state.players(idx))
+        randomActivePlayer <- nextIntBounded(alivePlayers.size).map(idx => alivePlayers(idx))
         (cdId, cd)         <- setCountdown(questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
         newStage = Round(Idle(cdId), state.pack.rounds.head, Set(), randomActivePlayer.id)
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
@@ -290,7 +306,8 @@ object GameActor {
         .withStage(newStage)
     }
 
-    private def broadcast(m: GameEvent[Unit]) = ZIO.foreachPar(state.players)(p => p.reply ! m)
+    private def broadcast(m: GameEvent[Unit]) =
+      ZIO.foreachPar(state.players.filterNot(_.disconnected))(p => p.reply ! m)
 
     private def setCountdown(seconds: Int)(
       afterCountdown: ActorRef[GameCommand] => RIO[Env, Unit]

@@ -3,12 +3,12 @@ package zodo.jeopardy.client.events
 import zio._
 import zio.actors._
 import zio.logging._
-import zodo.jeopardy.actors.{GameActorRef, LobbyActor, LobbyActorRef}
+import zodo.jeopardy.actors.{GameActorRef, LobbyActorRef}
 import zodo.jeopardy.client.environment.AppEnv
 import zodo.jeopardy.client.views.ViewState
 import zodo.jeopardy.client.views.ViewState.InGame
-import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand}
 import zodo.jeopardy.model.StageSnapshot.BeforeStart
+import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand}
 
 object OutgoingProxy {
 
@@ -33,6 +33,12 @@ object OutgoingProxy {
               _ <- log.debug(s"<- ClientEvent.Introduce($name)")
               _ <- access.transition(_ => ViewState.Authorized(name))
             } yield State(Some(name), None)
+
+          case (State(_, maybeGame), ClientEvent.Leave) =>
+            (for {
+              game <- ZIO.fromOption(maybeGame)
+              _    <- game ? GameCommand.DisconnectPlayer(playerId)
+            } yield ()).ignore.as(state)
 
           case (_, ClientEvent.UploadFile(hash, pack)) =>
             for {

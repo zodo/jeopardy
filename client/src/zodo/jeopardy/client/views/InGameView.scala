@@ -50,9 +50,10 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   }
 
   private def renderPlayer(info: PlayerInfo): DocumentNode = {
-    val PlayerInfo(id, name, score, state, me, buttonPressed, guess) = info
+    val PlayerInfo(id, name, score, state, me, buttonPressed, guess, disconnected) = info
 
     div(
+      when(disconnected)(color @= "gray"),
       title := s"Id - $id",
       ul(
         h3(

@@ -38,9 +38,9 @@ object client extends BaseScalaModule {
 
   override def ivyDeps = Agg(
     ivy"dev.zio::zio-interop-cats:2.2.0.1",
-    ivy"org.fomkin::korolev-akka:0.17-M3",
-    ivy"org.fomkin::korolev-zio:0.17-M3",
-    ivy"org.fomkin::korolev-http4s:0.17-M3",
+    ivy"org.fomkin::korolev-akka:0.17.0",
+    ivy"org.fomkin::korolev-zio:0.17.0",
+    ivy"org.fomkin::korolev-http4s:0.17.0",
     ivy"org.http4s::http4s-server:0.21.18",
     ivy"org.http4s::http4s-dsl:0.21.18",
     ivy"org.http4s::http4s-blaze-server:0.21.18"

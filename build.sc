@@ -38,6 +38,8 @@ object client extends BaseScalaModule {
 
   override def ivyDeps = Agg(
     ivy"dev.zio::zio-interop-cats:2.2.0.1",
+    ivy"dev.zio::zio-config-magnolia:1.0.0",
+    ivy"dev.zio::zio-config-typesafe:1.0.0",
     ivy"org.fomkin::korolev-akka:0.17.0",
     ivy"org.fomkin::korolev-zio:0.17.0",
     ivy"org.fomkin::korolev-http4s:0.17.0",

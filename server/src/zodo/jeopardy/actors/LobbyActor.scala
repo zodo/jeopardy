@@ -5,7 +5,7 @@ import zio.actors._
 import zio.clock.Clock
 import zio.logging._
 import zio.random._
-import zodo.jeopardy.model.{GameEntry, LobbyCommand}
+import zodo.jeopardy.model.{GameConfig, GameEntry, LobbyCommand}
 import zodo.jeopardy.model.LobbyCommand._
 
 object LobbyActor {
@@ -15,7 +15,7 @@ object LobbyActor {
     val init = State(Map())
   }
 
-  type Env = Random with Clock with Logging
+  type Env = Random with Clock with Logging with Has[GameConfig]
 
   val handler = new Actor.Stateful[Env, State, LobbyCommand] {
     override def receive[A](state: State, msg: LobbyCommand[A], context: Context): RIO[Env, (State, A)] =

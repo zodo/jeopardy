@@ -11,18 +11,13 @@ import zodo.jeopardy.actors.GameActor.State.Stage._
 import zodo.jeopardy.actors.GameActor.State._
 import zodo.jeopardy.model.GameCommand.{ShowAnswer, _}
 import zodo.jeopardy.model.GameEvent.{CountdownModel, CountdownUpdated}
-import zodo.jeopardy.model.{GameCommand, GameEvent, PackModel, StageSnapshot}
+import zodo.jeopardy.model.{GameCommand, GameConfig, GameEvent, PackModel, StageSnapshot}
 
 import java.util.UUID
 
 object GameActor {
 
-  // move to config
-  val questionSelectionTimeout = 20
-  val hitTheButtonTimeout = 10
-  val answerTimeout = 20
-
-  type Env = Logging with Random with Clock
+  type Env = Logging with Random with Clock with Has[GameConfig]
   type CountdownFiber = Fiber.Runtime[Throwable, Unit]
   type CountdownId = String
 
@@ -91,16 +86,16 @@ object GameActor {
 
   val handler: Actor.Stateful[Env, State, GameCommand] = new Actor.Stateful[Env, State, GameCommand] {
     override def receive[A](state: State, msg: GameCommand[A], context: Context): RIO[Env, (State, A)] = {
-      val onReceive = new OnReceive(state, msg, context)
-
       for {
-        _        <- log.debug(s"GameActor <- $msg")
+        _      <- log.debug(s"GameActor <- $msg")
+        config <- ZIO.service[GameConfig]
+        onReceive = new OnReceive(state, msg, context, config)
         newState <- onReceive.handle
       } yield newState -> ().asInstanceOf[A]
     }
   }
 
-  private class OnReceive(state: State, msg: GameCommand[_], context: Context) {
+  private class OnReceive(state: State, msg: GameCommand[_], context: Context, config: GameConfig) {
 
     def handle: RIO[Env, State] =
       (state.stage, msg) match {
@@ -148,7 +143,7 @@ object GameActor {
       val alivePlayers = state.players.filterNot(_.disconnected)
       for {
         randomActivePlayer <- nextIntBounded(alivePlayers.size).map(idx => alivePlayers(idx))
-        (cdId, cd)         <- setCountdown(questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
+        (cdId, cd)         <- setCountdown(config.questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
         newStage = Round(Idle(cdId), state.pack.rounds.head, Set(), randomActivePlayer.id)
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
       } yield state
@@ -162,7 +157,7 @@ object GameActor {
           question     <- ZIO.fromOption(r.round.themes.flatMap(_.questions).find(_.id == m.questionId))
           _            <- ZIO.fail(()).when(r.takenQuestions.contains(m.questionId))
           _            <- ZIO.fail(()).when(r.activePlayer != m.playerId)
-          (qCdId, qCd) <- setCountdown(hitTheButtonTimeout)(_ ! ShowAnswer(question))
+          (qCdId, qCd) <- setCountdown(config.hitTheButtonTimeout)(_ ! ShowAnswer(question))
           newStage = r.copy(stage = Question(question, qCdId))
           _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
           _ <- stoppedCountdown(idleCdId)
@@ -177,7 +172,7 @@ object GameActor {
       for {
         _                <- stoppedCountdown(questionStage.cdId)
         _                <- broadcast(GameEvent.PlayerHitTheButton(playerId))
-        (answerCdId, cd) <- setCountdown(answerTimeout)(_ ! GameCommand.PlayerDontKnowAnswer)
+        (answerCdId, cd) <- setCountdown(config.answerTimeout)(_ ! GameCommand.PlayerDontKnowAnswer)
         newStage = r.copy(stage = AwaitingAnswer(questionStage, playerId, answerCdId))
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
       } yield state
@@ -220,7 +215,7 @@ object GameActor {
       } else {
         for {
           _          <- stoppedCountdown(answerCdId)
-          (cdId, cd) <- setCountdown(answerTimeout)(_ ! ShowAnswer(question))
+          (cdId, cd) <- setCountdown(config.answerTimeout)(_ ! ShowAnswer(question))
           newState = state
             .withPlayerScore(playerId, _ - question.price)
             .withCd(cdId, cd)
@@ -255,7 +250,7 @@ object GameActor {
       val haveMoreRounds = state.pack.rounds.last.id != r.round.id
 
       for {
-        (cdId, cd) <- setCountdown(questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
+        (cdId, cd) <- setCountdown(config.questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
         newStage =
           if (haveMoreQuestions) {
             r.copy(stage = Idle(cdId))
@@ -298,7 +293,7 @@ object GameActor {
       val availableQuestions = r.round.themes.flatMap(_.questions).filterNot(q => r.takenQuestions.contains(q.id))
       for {
         randomQuestion <- nextIntBounded(availableQuestions.length).map(availableQuestions)
-        (qCdId, qCd)   <- setCountdown(hitTheButtonTimeout)(_ ! ShowAnswer(randomQuestion))
+        (qCdId, qCd)   <- setCountdown(config.hitTheButtonTimeout)(_ ! ShowAnswer(randomQuestion))
         newStage = r.copy(stage = Question(randomQuestion, qCdId))
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
       } yield state

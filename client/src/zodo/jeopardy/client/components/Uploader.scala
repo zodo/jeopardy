@@ -6,7 +6,8 @@ import korolev.data.Bytes
 import korolev.effect.Effect
 import korolev.effect.io.FileIO
 import korolev.state.javaSerialization._
-import zio.Task
+import zio.{Task, ZIO}
+import zodo.jeopardy.client.AppConfig.ServerConfig
 import zodo.jeopardy.client.components.Uploader.UploadStage._
 import zodo.jeopardy.client.components.Uploader.{FileUploaded, State}
 import zodo.jeopardy.client.environment.AppTask
@@ -61,17 +62,20 @@ class Uploader(implicit eff: Effect[AppTask])
   private def onUploadClick(access: Access) = {
 
     def fetchFile(handler: FileHandler, data: korolev.effect.Stream[AppTask, Bytes]) = {
-      val size = handler.size
-      val path = Paths.get(s"/tmp/korolev/${handler.fileName}")
-      data
-        .over(0L) { case (acc, chunk) =>
-          val loaded = chunk.fold(acc)(_.length + acc)
-          access
-            .transition(_.copy(percentage = Try((loaded / size * 100).toInt).toOption))
-            .as(loaded)
-        }
-        .to(FileIO.write(path))
-        .as(path)
+      for {
+        config <- ZIO.service[ServerConfig]
+        size = handler.size
+        path = Paths.get(config.packContentPath, handler.fileName)
+        result <- data
+          .over(0L) { case (acc, chunk) =>
+            val loaded = chunk.fold(acc)(_.length + acc)
+            access
+              .transition(_.copy(percentage = Try((loaded / size * 100).toInt).toOption))
+              .as(loaded)
+          }
+          .to(FileIO.write(path))
+          .as(path)
+      } yield result
     }
 
     (for {

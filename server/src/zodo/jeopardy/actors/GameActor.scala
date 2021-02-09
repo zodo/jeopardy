@@ -111,6 +111,8 @@ object GameActor {
         case (r: Round, ReturnToRound)        => handleReturnToRound(r)
         case (_, TickCountdown(tick, id))     => handleTickCountdown(tick, id)
         case (r: Round, ChooseRandomQuestion) => handleChooseRandomQuestion(r)
+        case (Round(AwaitingAnswer(q, apId, cd), _, _, _), PlayerDontKnowAnswer) =>
+          handlePlayerDontKnowAnswer(q.question, apId, cd)
 
         case s => log.error(s"Unexpected message $msg for state $state").as(state)
       }
@@ -213,19 +215,33 @@ object GameActor {
           _    <- self ! ShowAnswer(question)
         } yield newState
       } else {
-        for {
-          _          <- stoppedCountdown(answerCdId)
-          (cdId, cd) <- setCountdown(config.answerTimeout)(_ ! ShowAnswer(question))
-          newState = state
-            .withPlayerScore(playerId, _ - question.price)
-            .withCd(cdId, cd)
-            .withoutCd(answerCdId)
-            .withRoundStage(Question(question, cdId))
-          _ <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = false))
-          _ <- broadcast(GameEvent.PlayerScoreUpdated(playerId, -question.price))
-          _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newState.stage)))
-        } yield newState
+        handleInvalidAnswer(playerId, answer, answerCdId, question)
       }
+    }
+
+    def handlePlayerDontKnowAnswer(question: PackModel.Question, playerId: String, answerCdId: CountdownId) = {
+      val shrugEmoji = "🤷"
+      handleInvalidAnswer(playerId, shrugEmoji, answerCdId, question)
+    }
+
+    private def handleInvalidAnswer(
+      playerId: String,
+      answer: String,
+      answerCdId: CountdownId,
+      question: PackModel.Question
+    ) = {
+      for {
+        _          <- stoppedCountdown(answerCdId)
+        (cdId, cd) <- setCountdown(config.answerTimeout)(_ ! ShowAnswer(question))
+        newState = state
+          .withPlayerScore(playerId, _ - question.price)
+          .withCd(cdId, cd)
+          .withoutCd(answerCdId)
+          .withRoundStage(Question(question, cdId))
+        _ <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = false))
+        _ <- broadcast(GameEvent.PlayerScoreUpdated(playerId, -question.price))
+        _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newState.stage)))
+      } yield newState
     }
 
     private def handleShowAnswer(round: Round, msg: ShowAnswer) = {

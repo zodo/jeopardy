@@ -29,3 +29,6 @@ jobs:
 
       - name: Compile
         run: mill _.compile
+        
+      - name: Test
+        run: mill _.test

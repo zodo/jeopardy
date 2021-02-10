@@ -17,10 +17,10 @@ jobs:
 
       - uses: actions/cache@v1
         with:
-          path: ~/.ivy2/cache
-          key: ${{ runner.os }}-ivy2-${{ hashFiles('**/build.sc') }}
+          path: ~/.cache/coursier/v1
+          key: ${{ runner.os }}-coursier-${{ hashFiles('**/build.sc') }}
           restore-keys: |
-            ${{ runner.os }}-ivy2-
+            ${{ runner.os }}-coursier-
 
       - name: Set up Mill
         uses: jodersky/setup-mill@v0.2.3

@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cache/coursier/v1
+          key: ${{ runner.os }}-coursier-${{ hashFiles('**/build.sc') }}
+          restore-keys: |
+            ${{ runner.os }}-coursier-
+
+      - name: Set up Mill
+        uses: jodersky/setup-mill@v0.2.3
+        with:
+          mill-version: 0.9.5
+
+      - name: Compile
+        run: mill _.compile
+        
+      - name: Test
+        run: mill _.test

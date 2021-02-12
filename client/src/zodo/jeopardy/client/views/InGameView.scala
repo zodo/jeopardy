@@ -2,16 +2,15 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
-import ViewState._
 import levsha.events.EventPhase.AtTarget
-import zio.logging.log
-import zodo.jeopardy.model.StageSnapshot._
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
+import zodo.jeopardy.client.views.ViewState._
 import zodo.jeopardy.model.PackModel
-import zodo.jeopardy.model.PackModel.Fragment.Image
+import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
+import zodo.jeopardy.model.StageSnapshot._
 
-import scala.concurrent.duration._
+import java.net.URLEncoder
 
 class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent])(implicit eff: Effect[AppTask]) {
 
@@ -103,18 +102,6 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   private def renderQuestion(hash: String, question: PackModel.Question, countdown: Option[Countdown]): DocumentNode = {
     div(
       h2("Question"),
-      question.fragments.map(fragment =>
-        div(
-          fragment match {
-            case Image(url) =>
-              img(
-                width @= "600px",
-                src := s"/media/$hash/Images/${url.drop(1)}"
-              )
-            case _ => fragment.toString
-          }
-        )
-      ),
       div(
         button(
           backgroundColor @= "green",
@@ -123,6 +110,28 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
           event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
           event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
+        )
+      ),
+      question.fragments.map(fragment =>
+        div(
+          fragment match {
+            case Text(value) => h1(value)
+            case Image(url) =>
+              img(
+                width @= "600px",
+                src := s"/media/$hash/Images/${url.drop(1)}"
+              )
+            case Audio(url) =>
+              audio(
+                src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                autoplay := "true"
+              )
+            case Video(url) =>
+              video(
+                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                autoplay := "true"
+              )
+          }
         )
       )
     )

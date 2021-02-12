@@ -44,6 +44,9 @@ object GameActorListener {
             case PlayerDisconnected(id) =>
               updater ! UpdateGame(_.withPlayers(_.id == id, p => p.copy(disconnected = true)))
 
+            case PlayerReconnected(id) =>
+              updater ! UpdateGame(_.withPlayers(_.id == id, p => p.copy(disconnected = false)))
+
             case PlayerScoreUpdated(p, diff) =>
               updater ! UpdateGame(_.withPlayers(_.id == p, p => p.copy(score = p.score + diff)))
 

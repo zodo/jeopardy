@@ -1,9 +1,10 @@
 package zodo.jeopardy.client.views
 
-import korolev.Context
 import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
+import korolev.{/, Context, Root, Router}
+import zio.UIO
 import zio.actors.{ActorSystem, Supervisor}
 import zodo.jeopardy.actors.{LobbyActor, LobbyActorRef}
 import zodo.jeopardy.client.environment.AppTask
@@ -29,9 +30,15 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
 
     val eventsMediator = new SessionSetup(system, lobby)
 
+    val router = Router[AppTask, ViewState](
+      fromState = { case s: ViewState.InGame => Root / "game" / s.id },
+      toState = { case Root / "game" / id => _ => UIO(ViewState.RedirectToGame(id)) }
+    )
+
     KorolevServiceConfig[AppTask, ViewState, ClientEvent](
       stateLoader = StateLoader.default(ViewState.Anonymous),
       extensions = List(eventsMediator),
+      router = router,
       document = state =>
         optimize {
           Html(

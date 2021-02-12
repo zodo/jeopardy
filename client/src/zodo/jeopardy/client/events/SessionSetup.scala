@@ -4,6 +4,7 @@ import korolev.Extension
 import korolev.effect.Effect
 import zio._
 import zio.actors.ActorSystem
+import zio.logging.log
 import zodo.jeopardy.actors.LobbyActorRef
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.views.ViewState
@@ -23,15 +24,17 @@ final class SessionSetup(system: ActorSystem, lobby: LobbyActorRef)(implicit
             .make(
               s"session-$playerId",
               actors.Supervisor.none,
-              SessionActor.State(None, None),
+              SessionActor.State(None, None, None),
               SessionActor.handler(lobby, playerId, access)
             )
             .map(session =>
               Extension.Handlers[AppTask, ViewState, ClientEvent](
                 onDestroy = () =>
                   for {
+                    _ <- log.debug(s"Started session destroying $playerId")
                     _ <- session ? ClientEvent.Leave
                     _ <- session.stop
+                    _ <- log.debug(s"Finished session destroying $playerId")
                   } yield (),
                 onMessage = message => session ! message
               )

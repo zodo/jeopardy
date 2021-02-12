@@ -118,15 +118,29 @@ object GameActor {
       }
 
     private def handleAddPlayer(m: AddPlayer) = {
-      val player = Player(m.id, m.name, 0, m.reply)
-      for {
-        _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
-        _ <- ZIO.foreach_(state.players :+ player) { p =>
-          (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
-            ((player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected))
-        }
-        _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
-      } yield state.copy(players = state.players :+ player)
+      val idx = state.players.indexWhere(_.id == m.id)
+      if (idx >= 0) {
+        val player = state.players(idx).copy(reply = m.reply, disconnected = false)
+        val newState = state.copy(players = state.players.updated(idx, player))
+        for {
+          _ <- broadcast(GameEvent.PlayerReconnected(player.id))
+          _ <- ZIO.foreach_(newState.players) { p =>
+            (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
+              (player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected)
+          }
+          _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
+        } yield newState
+      } else {
+        val player = Player(m.id, m.name, 0, m.reply)
+        for {
+          _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
+          _ <- ZIO.foreach_(state.players :+ player) { p =>
+            (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
+              ((player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected))
+          }
+          _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
+        } yield state.copy(players = state.players :+ player)
+      }
     }
 
     private def handlePlayerDisconnect(playerId: String) = {
@@ -135,9 +149,10 @@ object GameActor {
         UIO(state)
       } else {
         val player = state.players(idx)
+        val newState = state.copy(players = state.players.updated(idx, player.copy(disconnected = true)))
         for {
-          _ <- broadcast(GameEvent.PlayerDisconnected(playerId))
-        } yield state.copy(players = state.players.updated(idx, player.copy(disconnected = true)))
+          _ <- broadcast(GameEvent.PlayerDisconnected(playerId), newState)
+        } yield newState
       }
     }
 
@@ -317,8 +332,8 @@ object GameActor {
         .withStage(newStage)
     }
 
-    private def broadcast(m: GameEvent[Unit]) =
-      ZIO.foreachPar(state.players.filterNot(_.disconnected))(p => p.reply ! m)
+    private def broadcast(m: GameEvent[Unit], useState: State = state) =
+      ZIO.foreachPar(useState.players.filterNot(_.disconnected))(p => log.debug(s"Sending $m to $p") *> (p.reply ! m))
 
     private def setCountdown(seconds: Int)(
       afterCountdown: ActorRef[GameCommand] => RIO[Env, Unit]

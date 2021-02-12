@@ -6,8 +6,11 @@ import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.client.views.ViewState._
 
+import scala.concurrent.duration.DurationInt
+
 class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: Effect[AppTask]) {
 
+  import ctx._
   import levsha.dsl._
   import html._
 
@@ -27,10 +30,15 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
       TagDef("main")(
         style := "width: 1000px; margin: 20px auto",
         state match {
-          case s: ViewState.ErrorMessage => errorMessageView.render(s)
-          case ViewState.Anonymous       => anonymousView.render()
-          case s: ViewState.Authorized   => authorizedView.render(s)
-          case s: ViewState.InGame       => inGameView.render(s)
+          case RedirectToGame(id) =>
+            p(
+              "Redirecting...",
+              delay(1.seconds)(_.publish(ClientEvent.EnterGame(id)))
+            )
+          case s: ErrorMessage => errorMessageView.render(s)
+          case Anonymous       => anonymousView.render()
+          case s: Authorized   => authorizedView.render(s)
+          case s: InGame       => inGameView.render(s)
         }
       )
     )

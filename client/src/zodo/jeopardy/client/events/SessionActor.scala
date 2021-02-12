@@ -12,7 +12,7 @@ import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand, PlayerId}
 
 object SessionActor {
 
-  case class State(playerName: Option[String], game: Option[GameActorRef])
+  case class State(playerName: Option[String], gameToConnectId: Option[String], game: Option[GameActorRef])
 
   def handler(
     lobby: LobbyActorRef,
@@ -28,13 +28,18 @@ object SessionActor {
         context: actors.Context
       ): RIO[AppEnv, (State, A)] = {
         (state, msg) match {
-          case (_, ClientEvent.Introduce(name)) =>
+          case (State(_, gameToConnectId, _), ClientEvent.Introduce(name)) =>
             for {
-              _ <- log.debug(s"<- ClientEvent.Introduce($name)")
-              _ <- access.transition(_ => ViewState.Authorized(name))
-            } yield State(Some(name), None)
+              _                                       <- log.debug(s"<- ClientEvent.Introduce($name)")
+              _                                       <- access.transition(_ => ViewState.Authorized(name))
+              self: ActorRef[ParametrizedClientEvent] <- context.self
+              _ <- ZIO
+                .fromOption(gameToConnectId)
+                .flatMap(id => self ! ClientEvent.EnterGame(id))
+                .ignore
+            } yield state.copy(playerName = Some(name))
 
-          case (State(_, maybeGame), ClientEvent.Leave) =>
+          case (State(_, _, maybeGame), ClientEvent.Leave) =>
             (for {
               _    <- lobby ? LobbyCommand.RemovePlayer(playerId)
               game <- ZIO.fromOption(maybeGame)
@@ -47,7 +52,14 @@ object SessionActor {
               self: ActorRef[ParametrizedClientEvent] <- context.self
               _                                       <- self ! ClientEvent.EnterGame(id)
             } yield state
-          case (State(Some(playerName), _), ClientEvent.EnterGame(gameId)) =>
+
+          case (State(None, _, _), ClientEvent.EnterGame(gameId)) =>
+            for {
+              _ <- log.debug(s"entering game $gameId as anonymous")
+              _ <- access.syncTransition(_ => ViewState.Anonymous)
+            } yield state.copy(gameToConnectId = Some(gameId))
+
+          case (State(Some(playerName), _, _), ClientEvent.EnterGame(gameId)) =>
             for {
               _         <- log.debug(s"entering game $gameId as ${playerName}")
               maybeGame <- lobby ? LobbyCommand.GetGameEntry(gameId)
@@ -72,16 +84,16 @@ object SessionActor {
                 case None =>
                   access
                     .transition(_ => ViewState.Authorized(playerName, Some("Game not found")))
-                    .as(State(Some(playerName), None))
+                    .as(state)
               }
             } yield newState
-          case (State(_, Some(game)), ClientEvent.StartGame) =>
+          case (State(_, _, Some(game)), ClientEvent.StartGame) =>
             (game ! GameCommand.Start).as(state)
-          case (State(_, Some(game)), ClientEvent.SelectQuestion(questionId)) =>
+          case (State(_, _, Some(game)), ClientEvent.SelectQuestion(questionId)) =>
             (game ! GameCommand.SelectQuestion(playerId, questionId)).as(state)
-          case (State(_, Some(game)), ClientEvent.HitButton) =>
+          case (State(_, _, Some(game)), ClientEvent.HitButton) =>
             (game ! GameCommand.HitButton(playerId)).as(state)
-          case (State(_, Some(game)), ClientEvent.GiveAnswer(value)) =>
+          case (State(_, _, Some(game)), ClientEvent.GiveAnswer(value)) =>
             (game ! GameCommand.GiveAnswer(playerId, value)).as(state)
           case s => log.error(s"unexpected transition OutgoingProxy <- $s").as(state)
 

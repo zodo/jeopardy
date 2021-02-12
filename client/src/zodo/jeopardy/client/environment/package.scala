@@ -8,7 +8,6 @@ import zio.random.Random
 import zio.system.System
 import zio.{Has, RIO}
 import zodo.jeopardy.client.AppConfig.ServerConfig
-import zodo.jeopardy.client.environment.DefaultActorSystem.HasActorSystem
 import zodo.jeopardy.model.GameConfig
 
 package object environment {
@@ -17,7 +16,6 @@ package object environment {
     with System
     with Random
     with Blocking
-    with HasActorSystem
     with Logging
     with Has[GameConfig]
     with Has[ServerConfig]

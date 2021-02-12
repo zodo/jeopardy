@@ -4,30 +4,30 @@ import korolev.Context
 import korolev.effect.Effect
 import korolev.server.{KorolevServiceConfig, StateLoader}
 import korolev.state.javaSerialization._
-import zio.actors.Supervisor
+import zio.actors.{ActorSystem, Supervisor}
 import zodo.jeopardy.actors.{LobbyActor, LobbyActorRef}
-import zodo.jeopardy.client.environment.{AppTask, DefaultActorSystem}
-import zodo.jeopardy.client.events.{ClientEvent, EventsMediator}
+import zodo.jeopardy.client.environment.AppTask
+import zodo.jeopardy.client.events.{ClientEvent, SessionSetup}
 
 import scala.concurrent.ExecutionContext
 
 class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
 
   val configM = for {
-    system <- DefaultActorSystem.system
+    system <- ActorSystem("default")
     lobby  <- system.make("lobby", Supervisor.none, LobbyActor.State.init, LobbyActor.handler)
-  } yield config(lobby)
+  } yield config(system, lobby)
 
   val ctx = Context[AppTask, ViewState, ClientEvent]
 
   import levsha.dsl._
   import html._
 
-  private def config(lobby: LobbyActorRef) = {
+  private def config(system: ActorSystem, lobby: LobbyActorRef) = {
 
     val rootView = new RootView(ctx)
 
-    val eventsMediator = new EventsMediator(lobby)
+    val eventsMediator = new SessionSetup(system, lobby)
 
     KorolevServiceConfig[AppTask, ViewState, ClientEvent](
       stateLoader = StateLoader.default(ViewState.Anonymous),

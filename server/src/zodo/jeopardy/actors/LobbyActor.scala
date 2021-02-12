@@ -5,14 +5,17 @@ import zio.actors._
 import zio.clock.Clock
 import zio.logging._
 import zio.random._
-import zodo.jeopardy.model.{GameConfig, GameEntry, LobbyCommand}
+import zodo.jeopardy.model.{GameConfig, GameEntry, LobbyCommand, PlayerId}
 import zodo.jeopardy.model.LobbyCommand._
 
 object LobbyActor {
 
-  case class State(entries: Map[String, GameEntry])
+  case class State(
+    entries: Map[String, GameEntry],
+    players: Set[PlayerId]
+  )
   object State {
-    val init = State(Map())
+    val init = State(Map(), Set())
   }
 
   type Env = Random with Clock with Logging with Has[GameConfig]
@@ -41,6 +44,15 @@ object LobbyActor {
             entry <- ZIO.fromOption(state.entries.get(id))
             _     <- entry.game.stop
           } yield ()).ignore.as(state.copy(entries = state.entries.removed(id)) -> ())
+
+        case AddPlayer(id) =>
+          if (state.players.contains(id)) {
+            UIO(state -> Left("Please close other tabs"))
+          } else {
+            UIO(state.copy(players = state.players + id) -> Right(()))
+          }
+
+        case RemovePlayer(id) => UIO(state.copy(players = state.players - id) -> ())
       }
   }
 

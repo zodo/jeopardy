@@ -10,13 +10,13 @@ import zodo.jeopardy.client.views.ViewState
 import zodo.jeopardy.client.views.ViewState.PlayerState.{ChoosesQuestion, Idle, ThinkingAboutAnswer}
 import zodo.jeopardy.client.views.ViewState._
 import zodo.jeopardy.model.GameEvent._
-import zodo.jeopardy.model.{GameEvent, StageSnapshot}
+import zodo.jeopardy.model.{GameEvent, PlayerId, StageSnapshot}
 
 object GameActorListener {
 
   def handler(
     playerName: String,
-    ownerPlayerId: String,
+    ownerPlayerId: PlayerId,
     updater: ViewStateUpdaterActorRef
   ): Actor.Stateful[AppEnv, Unit, GameEvent] = {
     new Actor.Stateful[AppEnv, Unit, GameEvent] {

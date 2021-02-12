@@ -6,6 +6,7 @@ sealed trait ViewState
 object ViewState {
   case object Anonymous extends ViewState
   case class Authorized(name: String, errorMessage: Option[String] = None) extends ViewState
+  case class ErrorMessage(msg: String) extends ViewState
   case class InGame(
     id: String,
     packId: String,

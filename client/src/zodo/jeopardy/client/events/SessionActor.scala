@@ -8,15 +8,15 @@ import zodo.jeopardy.client.environment.AppEnv
 import zodo.jeopardy.client.views.ViewState
 import zodo.jeopardy.client.views.ViewState.InGame
 import zodo.jeopardy.model.StageSnapshot.BeforeStart
-import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand}
+import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand, PlayerId}
 
-object OutgoingProxy {
+object SessionActor {
 
   case class State(playerName: Option[String], game: Option[GameActorRef])
 
   def handler(
     lobby: LobbyActorRef,
-    playerId: String,
+    playerId: PlayerId,
     access: Access
   ): Actor.Stateful[AppEnv, State, ParametrizedClientEvent] = {
 
@@ -36,6 +36,7 @@ object OutgoingProxy {
 
           case (State(_, maybeGame), ClientEvent.Leave) =>
             (for {
+              _    <- lobby ? LobbyCommand.RemovePlayer(playerId)
               game <- ZIO.fromOption(maybeGame)
               _    <- game ? GameCommand.DisconnectPlayer(playerId)
             } yield ()).ignore.as(state)
@@ -54,13 +55,13 @@ object OutgoingProxy {
                 case Some(GameEntry(gameId, packId, game)) =>
                   for {
                     stateUpdater <- context.make(
-                      s"state-updater-$playerId",
+                      s"state-updater",
                       actors.Supervisor.none,
                       (),
                       ViewStateUpdaterActor.handler(access)
                     )
                     gameListener <- context.make(
-                      s"game-listener-$playerId",
+                      s"game-listener",
                       actors.Supervisor.none,
                       (),
                       GameActorListener.handler(playerName, playerId, stateUpdater)

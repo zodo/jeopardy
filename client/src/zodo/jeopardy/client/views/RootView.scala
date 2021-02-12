@@ -12,6 +12,7 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
   import html._
 
   private val anonymousView = new AnonymousView(ctx)
+  private val errorMessageView = new ErrorMessageView(ctx)
   private val authorizedView = new AuthorizedView(ctx)
 
   private val inGameView = new InGameView(
@@ -26,9 +27,10 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
       TagDef("main")(
         style := "width: 1000px; margin: 20px auto",
         state match {
-          case ViewState.Anonymous     => anonymousView.render()
-          case s: ViewState.Authorized => authorizedView.render(s)
-          case s: ViewState.InGame     => inGameView.render(s)
+          case s: ViewState.ErrorMessage => errorMessageView.render(s)
+          case ViewState.Anonymous       => anonymousView.render()
+          case s: ViewState.Authorized   => authorizedView.render(s)
+          case s: ViewState.InGame       => inGameView.render(s)
         }
       )
     )

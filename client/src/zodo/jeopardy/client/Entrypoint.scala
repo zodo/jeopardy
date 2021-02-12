@@ -13,7 +13,7 @@ import zio.blocking.Blocking
 import zio.interop.catz._
 import zio.logging.{LogLevel, Logging}
 import zio.{App, RIO, URIO, ZEnv, ZIO, ExitCode => ZExitCode}
-import zodo.jeopardy.client.environment.{AppEnv, AppTask, DefaultActorSystem}
+import zodo.jeopardy.client.environment.{AppEnv, AppTask}
 import zodo.jeopardy.client.views.KorolevService
 import zio.config.syntax._
 import zodo.jeopardy.client.AppConfig.ServerConfig
@@ -63,7 +63,7 @@ object Entrypoint extends App {
   } yield ()
 
   override def run(args: List[String]): URIO[ZEnv, ZExitCode] = {
-    val env = ZEnv.live ++ DefaultActorSystem.live >+> Logging.console(
+    val env = ZEnv.live >+> Logging.console(
       logLevel = LogLevel.Debug
     ) ++ AppConfig.live.narrow(_.game) ++ AppConfig.live.narrow(_.server)
 

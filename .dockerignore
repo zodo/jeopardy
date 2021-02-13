@@ -1,0 +1,7 @@
+.idea
+/out
+.bsp
+.bloop
+.metals
+.vscode
+Dockerfile

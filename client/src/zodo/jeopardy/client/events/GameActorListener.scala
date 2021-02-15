@@ -30,25 +30,20 @@ object GameActorListener {
           _ <- log.debug(s"'$playerName' - GameActorListener <- $msg")
 
           _ <- msg match {
-            case PlayerAdded(p) =>
+            case PlayersUpdated(players) =>
               updater ! UpdateGame(state => {
-                val newPlayer = PlayerInfo(
-                  id = p.id,
-                  name = p.name,
-                  score = 0,
-                  state = calculatePlayerState(p.id, state.stage),
-                  me = ownerPlayerId == p.id
+                val newPlayers = players.map(p =>
+                  PlayerInfo(
+                    id = p.id,
+                    name = p.name,
+                    score = p.score,
+                    state = calculatePlayerState(p.id, state.stage),
+                    me = ownerPlayerId == p.id,
+                    disconnected = p.disconnected
+                  )
                 )
-                state.copy(players = state.players :+ newPlayer)
+                state.copy(players = newPlayers)
               })
-            case PlayerDisconnected(id) =>
-              updater ! UpdateGame(_.withPlayers(_.id == id, p => p.copy(disconnected = true)))
-
-            case PlayerReconnected(id) =>
-              updater ! UpdateGame(_.withPlayers(_.id == id, p => p.copy(disconnected = false)))
-
-            case PlayerScoreUpdated(p, diff) =>
-              updater ! UpdateGame(_.withPlayers(_.id == p, p => p.copy(score = p.score + diff)))
 
             case StageUpdated(stage) =>
               updater ! UpdateGame(state => {
@@ -58,7 +53,7 @@ object GameActorListener {
 
             case PlayerHitTheButton(playerId) =>
               def withButtonPressed(p: Boolean) =
-                updater ! UpdateGame(_.withPlayers(_.id == playerId, _.copy(buttonPressed = p)))
+                updater ! UpdateGame(_.withPlayerEvent(playerId, _.copy(buttonPressed = p)))
               for {
                 _ <- withButtonPressed(true)
                 _ <- withButtonPressed(false).delay(1.second).fork
@@ -66,7 +61,7 @@ object GameActorListener {
 
             case PlayerGaveAnswer(playerId, answer, isCorrect) =>
               def withGuess(g: Option[PlayerGuess]) =
-                updater ! UpdateGame(_.withPlayers(_.id == playerId, _.copy(guess = g)))
+                updater ! UpdateGame(_.withPlayerEvent(playerId, _.copy(guess = g)))
               for {
                 _ <- withGuess(Some(PlayerGuess(answer, isCorrect)))
                 _ <- withGuess(None).delay(2.seconds).fork

@@ -6,7 +6,7 @@ import levsha.events.EventPhase.AtTarget
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
 import zodo.jeopardy.client.views.ViewState._
-import zodo.jeopardy.model.PackModel
+import zodo.jeopardy.model.{PackModel, PlayerId}
 import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
 import zodo.jeopardy.model.StageSnapshot._
 
@@ -19,12 +19,12 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   import html._
 
   def render(inGame: ViewState.InGame): DocumentNode = inGame match {
-    case ViewState.InGame(gameId, hash, players, stage, countdown) =>
+    case ViewState.InGame(gameId, hash, players, playerEvents, stage, countdown) =>
       optimize {
         div(
           h2(s"In game '$gameId' with pack $hash"),
           players
-            .map(renderPlayer),
+            .map(renderPlayer(playerEvents)),
           countdown match {
             case Some(c) =>
               progress(
@@ -48,19 +48,19 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
       }
   }
 
-  private def renderPlayer(info: PlayerInfo): DocumentNode = {
-    val PlayerInfo(id, name, score, state, me, buttonPressed, guess, disconnected) = info
+  private def renderPlayer(playerEvents: PlayerEvents)(info: PlayerInfo): DocumentNode = {
+    val PlayerInfo(id, name, score, state, me, disconnected) = info
 
     div(
       when(disconnected)(color @= "gray"),
       title := s"Id - $id",
       ul(
         h3(
-          when(buttonPressed)(backgroundColor @= "red"),
+          when(playerEvents.isButtonPressed(id))(backgroundColor @= "red"),
           s"$name${if (me) "(its me!)" else ""} - $state"
         ),
         li(s"Score - $score"),
-        guess match {
+        playerEvents.guess(id) match {
           case Some(g) => li(s"Guess - $g")
           case None    => void
         }

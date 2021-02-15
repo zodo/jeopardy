@@ -11,7 +11,7 @@ import zodo.jeopardy.actors.GameActor.State.Stage._
 import zodo.jeopardy.actors.GameActor.State._
 import zodo.jeopardy.model.GameCommand.{ShowAnswer, _}
 import zodo.jeopardy.model.GameEvent.{CountdownModel, CountdownUpdated}
-import zodo.jeopardy.model.{GameCommand, GameConfig, GameEvent, PackModel, StageSnapshot}
+import zodo.jeopardy.model._
 
 import java.util.UUID
 
@@ -34,7 +34,7 @@ object GameActor {
     }
     def withCd(cdId: CountdownId, cd: Countdown): State = copy(countdowns = countdowns.updated(cdId, cd))
     def withoutCd(cdId: CountdownId): State = copy(countdowns = countdowns.removed(cdId))
-    def withPlayerScore(playerId: String, adjustScore: Int => Int): State = {
+    def withPlayerScore(playerId: PlayerId, adjustScore: Int => Int): State = {
       val newPlayers = players
         .map(p => if (p.id == playerId) p.copy(score = adjustScore(p.score)) else p)
       copy(players = newPlayers)
@@ -63,13 +63,13 @@ object GameActor {
     }
 
     case class Player(
-      id: String,
+      id: PlayerId,
       name: String,
       score: Int,
       reply: PlayerActorRef,
       disconnected: Boolean = false
     ) {
-      def toMessage: GameEvent.Player = GameEvent.Player(id, name)
+      def toMessage: GameEvent.Player = GameEvent.Player(id, name, score, disconnected)
     }
 
     case class Countdown(
@@ -123,23 +123,16 @@ object GameActor {
         val player = state.players(idx).copy(reply = m.reply, disconnected = false)
         val newState = state.copy(players = state.players.updated(idx, player))
         for {
-          _ <- broadcast(GameEvent.PlayerReconnected(player.id))
-          _ <- ZIO.foreach_(newState.players) { p =>
-            (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
-              (player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected)
-          }
+          _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
           _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
         } yield newState
       } else {
         val player = Player(m.id, m.name, 0, m.reply)
+        val newState = state.copy(players = state.players :+ player)
         for {
-          _ <- broadcast(GameEvent.PlayerAdded(player.toMessage))
-          _ <- ZIO.foreach_(state.players :+ player) { p =>
-            (player.reply ! GameEvent.PlayerAdded(p.toMessage)) *>
-              ((player.reply ! GameEvent.PlayerDisconnected(p.id)).when(p.disconnected))
-          }
+          _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
           _ <- player.reply ! GameEvent.StageUpdated(toSnapshot(state.stage))
-        } yield state.copy(players = state.players :+ player)
+        } yield newState
       }
     }
 
@@ -151,7 +144,7 @@ object GameActor {
         val player = state.players(idx)
         val newState = state.copy(players = state.players.updated(idx, player.copy(disconnected = true)))
         for {
-          _ <- broadcast(GameEvent.PlayerDisconnected(playerId), newState)
+          _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
         } yield newState
       }
     }
@@ -225,7 +218,7 @@ object GameActor {
         for {
           _    <- stoppedCountdown(answerCdId)
           _    <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = true))
-          _    <- broadcast(GameEvent.PlayerScoreUpdated(playerId, question.price))
+          _    <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
           self <- context.self[GameCommand]
           _    <- self ! ShowAnswer(question)
         } yield newState
@@ -254,7 +247,7 @@ object GameActor {
           .withoutCd(answerCdId)
           .withRoundStage(Question(question, cdId))
         _ <- broadcast(GameEvent.PlayerGaveAnswer(playerId, answer, isCorrect = false))
-        _ <- broadcast(GameEvent.PlayerScoreUpdated(playerId, -question.price))
+        _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newState.stage)))
       } yield newState
     }

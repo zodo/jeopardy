@@ -7,6 +7,7 @@ WORKDIR /src
 
 COPY build.sc .
 RUN mill client.resolvedIvyDeps
+RUN mill client.scalaCompilerClasspath
 
 COPY . .
 RUN mill client.assembly

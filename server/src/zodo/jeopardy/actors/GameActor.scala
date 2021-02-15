@@ -22,6 +22,7 @@ object GameActor {
   type CountdownId = String
 
   case class State(
+    id: String,
     pack: PackModel.Pack,
     players: Seq[Player],
     stage: Stage,
@@ -82,20 +83,27 @@ object GameActor {
     }
   }
 
-  def initState(pack: PackModel.Pack): State = State(pack, Seq(), BeforeStart, Map())
+  def initState(id: String, pack: PackModel.Pack): State = State(id, pack, Seq(), BeforeStart, Map())
 
-  val handler: Actor.Stateful[Env, State, GameCommand] = new Actor.Stateful[Env, State, GameCommand] {
-    override def receive[A](state: State, msg: GameCommand[A], context: Context): RIO[Env, (State, A)] = {
-      for {
-        _      <- log.debug(s"GameActor <- $msg")
-        config <- ZIO.service[GameConfig]
-        onReceive = new OnReceive(state, msg, context, config)
-        newState <- onReceive.handle
-      } yield newState -> ().asInstanceOf[A]
+  def handler(lobby: LobbyActorRef): Actor.Stateful[Env, State, GameCommand] =
+    new Actor.Stateful[Env, State, GameCommand] {
+      override def receive[A](state: State, msg: GameCommand[A], context: Context): RIO[Env, (State, A)] = {
+        for {
+          _      <- log.debug(s"GameActor <- $msg")
+          config <- ZIO.service[GameConfig]
+          onReceive = new OnReceive(state, msg, context, config, lobby)
+          newState <- onReceive.handle
+        } yield newState -> ().asInstanceOf[A]
+      }
     }
-  }
 
-  private class OnReceive(state: State, msg: GameCommand[_], context: Context, config: GameConfig) {
+  private class OnReceive(
+    state: State,
+    msg: GameCommand[_],
+    context: Context,
+    config: GameConfig,
+    lobby: LobbyActorRef
+  ) {
 
     def handle: RIO[Env, State] =
       (state.stage, msg) match {
@@ -143,9 +151,16 @@ object GameActor {
       } else {
         val player = state.players(idx)
         val newState = state.copy(players = state.players.updated(idx, player.copy(disconnected = true)))
-        for {
-          _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
-        } yield newState
+        if (newState.players.forall(_.disconnected)) {
+          for {
+            _ <- ZIO.foreachPar_(state.countdowns)(_._2.fiber.interrupt)
+            _ <- lobby ! LobbyCommand.EndGame(state.id)
+          } yield newState
+        } else {
+          for {
+            _ <- broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
+          } yield newState
+        }
       }
     }
 

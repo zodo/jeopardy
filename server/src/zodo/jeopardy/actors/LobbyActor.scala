@@ -25,13 +25,14 @@ object LobbyActor {
       msg match {
         case NewGame(hash, pack) =>
           for {
-            _  <- log.debug(s"LobbyActor <- NewGame($hash)")
-            id <- randomGameId
+            _    <- log.info(s"LobbyActor <- NewGame($hash)")
+            id   <- randomGameId
+            self <- context.self[LobbyCommand]
             gameActor <- context.make(
               s"game-$id",
               actors.Supervisor.none,
-              GameActor.initState(pack),
-              GameActor.handler
+              GameActor.initState(id, pack),
+              GameActor.handler(self)
             )
             entry = GameEntry(id, hash, gameActor)
           } yield state.copy(entries = state.entries.updated(id, entry)) -> entry
@@ -41,18 +42,26 @@ object LobbyActor {
             .as(state -> state.entries.get(id))
         case EndGame(id) =>
           (for {
+            _     <- log.info(s"LobbyActor <- EndGame($id)")
             entry <- ZIO.fromOption(state.entries.get(id))
             _     <- entry.game.stop
           } yield ()).ignore.as(state.copy(entries = state.entries.removed(id)) -> ())
 
         case AddPlayer(id) =>
-          if (state.players.contains(id)) {
-            UIO(state -> Left("Please close other tabs"))
-          } else {
-            UIO(state.copy(players = state.players + id) -> Right(()))
+          for {
+            _ <- log.info(s"LobbyActor <- AddPlayer($id)")
+          } yield {
+            if (state.players.contains(id)) {
+              state -> Left("Please close other tabs")
+            } else {
+              state.copy(players = state.players + id) -> Right(())
+            }
           }
 
-        case RemovePlayer(id) => UIO(state.copy(players = state.players - id) -> ())
+        case RemovePlayer(id) =>
+          for {
+            _ <- log.info(s"LobbyActor <- RemovePlayer($id)")
+          } yield state.copy(players = state.players - id) -> ()
       }
   }
 

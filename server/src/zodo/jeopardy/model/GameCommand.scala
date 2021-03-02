@@ -15,5 +15,4 @@ object GameCommand {
   case class ShowAnswer(question: PackModel.Question) extends GameCommand[Unit]
   case class TickCountdown(tick: Int, id: CountdownId) extends GameCommand[Unit]
   case object ChooseRandomQuestion extends GameCommand[Unit]
-  case object PlayerDontKnowAnswer extends GameCommand[Unit]
 }

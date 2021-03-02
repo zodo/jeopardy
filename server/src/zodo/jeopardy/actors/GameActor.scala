@@ -57,8 +57,12 @@ object GameActor {
       object RoundStage {
         case class Idle(cdId: CountdownId) extends RoundStage
         case class Question(question: PackModel.Question, cdId: CountdownId) extends RoundStage
-        case class AwaitingAnswer(questionStage: Question, answeringPlayer: String, cdId: CountdownId)
-            extends RoundStage
+        case class AwaitingAnswer(
+          questionStage: Question,
+          answeringPlayer: String,
+          cdId: CountdownId,
+          questionSecondsPassed: Int
+        ) extends RoundStage
         case class Answer(answer: PackModel.Answers) extends RoundStage
       }
     }
@@ -113,8 +117,8 @@ object GameActor {
         case (r @ Round(Idle(cd), _, _, _), m: SelectQuestion)   => handleSelectQuestion(r, m, cd)
         case (r @ Round(q: Question, _, _, _), HitButton(pId))   => handleHitButton(r, q, pId)
         case (Round(_: AwaitingAnswer, _, _, _), HitButton(pId)) => handleMissHitButton(pId)
-        case (r @ Round(AwaitingAnswer(q, apId, cd), _, _, _), GiveAnswer(pId, a)) if pId == apId =>
-          handleGiveAnswer(r, q, pId, a, cd)
+        case (r @ Round(AwaitingAnswer(q, apId, cd, secondsPassed), _, _, _), GiveAnswer(pId, a)) if pId == apId =>
+          handleGiveAnswer(r, q, pId, a, cd, secondsPassed)
         case (r: Round, m: ShowAnswer)        => handleShowAnswer(r, m)
         case (r: Round, ReturnToRound)        => handleReturnToRound(r)
         case (_, TickCountdown(tick, id))     => handleTickCountdown(tick, id)
@@ -193,10 +197,10 @@ object GameActor {
 
     private def handleHitButton(r: Round, questionStage: Question, playerId: String) = {
       for {
-        _                <- stoppedCountdown(questionStage.cdId)
+        maybeCd          <- stoppedCountdown(questionStage.cdId)
         _                <- broadcast(GameEvent.PlayerHitTheButton(playerId))
         (answerCdId, cd) <- setCountdown(config.answerTimeout)(_ ! GameCommand.GiveAnswer(playerId, "🤷"))
-        newStage = r.copy(stage = AwaitingAnswer(questionStage, playerId, answerCdId))
+        newStage = r.copy(stage = AwaitingAnswer(questionStage, playerId, answerCdId, maybeCd.fold(1)(_.value)))
         _ <- broadcast(GameEvent.StageUpdated(toSnapshot(newStage)))
       } yield state
         .withCd(answerCdId, cd)
@@ -215,7 +219,8 @@ object GameActor {
       questionStage: Question,
       playerId: String,
       answer: String,
-      answerCdId: CountdownId
+      answerCdId: CountdownId,
+      questionSecondsPassed: Int
     ) = {
       val question = questionStage.question
       if (isCorrect(question.answers, answer)) {
@@ -238,7 +243,7 @@ object GameActor {
       } else {
         for {
           _          <- stoppedCountdown(answerCdId)
-          (cdId, cd) <- setCountdown(config.answerTimeout)(_ ! ShowAnswer(question))
+          (cdId, cd) <- setCountdown(config.answerTimeout, questionSecondsPassed)(_ ! ShowAnswer(question))
           newState = state
             .withPlayerScore(playerId, _ - question.price)
             .withCd(cdId, cd)
@@ -253,9 +258,9 @@ object GameActor {
 
     private def handleShowAnswer(round: Round, msg: ShowAnswer) = {
       val cdId = round.stage match {
-        case Question(_, cdId)          => Some(cdId)
-        case AwaitingAnswer(_, _, cdId) => Some(cdId)
-        case _                          => None
+        case Question(_, cdId)             => Some(cdId)
+        case AwaitingAnswer(_, _, cdId, _) => Some(cdId)
+        case _                             => None
       }
 
       val newStage =
@@ -327,13 +332,13 @@ object GameActor {
     private def broadcast(m: GameEvent[Unit], useState: State = state) =
       ZIO.foreachPar(useState.players.filterNot(_.disconnected))(p => log.debug(s"Sending $m to $p") *> (p.reply ! m))
 
-    private def setCountdown(seconds: Int)(
+    private def setCountdown(seconds: Int, startsFrom: Int = 1)(
       afterCountdown: ActorRef[GameCommand] => RIO[Env, Unit]
     ): RIO[Env, (CountdownId, Countdown)] = {
       val id = UUID.randomUUID().toString
 
       def inBackground(self: ActorRef[GameCommand]) = ZIO
-        .foreach_(1 to seconds) { tick =>
+        .foreach_(startsFrom to seconds) { tick =>
           for {
             _ <- ZIO.sleep(1.second)
             _ <- self ! GameCommand.TickCountdown(tick, id)
@@ -342,20 +347,20 @@ object GameActor {
 
       for {
         _     <- log.debug(s"set countdown for $seconds with id $id")
-        _     <- broadcast(CountdownUpdated(Some(CountdownModel(0, seconds))))
+        _     <- broadcast(CountdownUpdated(Some(CountdownModel(startsFrom - 1, seconds))))
         self  <- context.self[GameCommand]
         fiber <- inBackground(self).fork
       } yield id -> Countdown(seconds, 0, fiber, afterCountdown(self))
     }
 
-    private def stoppedCountdown(id: CountdownId): URIO[Logging, Unit] = {
+    private def stoppedCountdown(id: CountdownId): URIO[Logging, Option[Countdown]] = {
       (for {
         _  <- log.debug(s"stop countdown $id")
         cd <- ZIO.fromOption(state.countdowns.get(id))
         _  <- cd.fiber.interrupt
         _  <- broadcast(GameEvent.CountdownUpdated(None))
         _  <- log.debug(s"countdown $id stopped")
-      } yield ()).ignore
+      } yield cd).option
     }
   }
 
@@ -369,10 +374,10 @@ object GameActor {
     case BeforeStart => StageSnapshot.BeforeStart
     case r: Round =>
       r.stage match {
-        case _: Idle                   => StageSnapshot.Round(r.round, r.takenQuestions, r.activePlayer)
-        case Question(question, _)     => StageSnapshot.Question(question)
-        case AwaitingAnswer(q, pId, _) => StageSnapshot.AnswerAttempt(q.question, pId)
-        case Answer(answer)            => StageSnapshot.Answer(answer)
+        case _: Idle                      => StageSnapshot.Round(r.round, r.takenQuestions, r.activePlayer)
+        case Question(question, _)        => StageSnapshot.Question(question)
+        case AwaitingAnswer(q, pId, _, _) => StageSnapshot.AnswerAttempt(q.question, pId)
+        case Answer(answer)               => StageSnapshot.Answer(answer)
       }
   }
 

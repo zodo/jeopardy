@@ -16,7 +16,7 @@ RUN mill client.assembly
 FROM openjdk:11-jre-slim
 
 EXPOSE 8080
-RUN mkdir /pack-content
+RUN mkdir -p /pack-content
 VOLUME /pack-content
 
 COPY --from=builder /src/out/client/assembly/dest/out.jar /app.jar

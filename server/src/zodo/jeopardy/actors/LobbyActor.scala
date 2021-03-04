@@ -5,6 +5,7 @@ import zio.actors._
 import zio.clock.Clock
 import zio.logging._
 import zio.random._
+import zodo.jeopardy.actors.game.GameActor
 import zodo.jeopardy.model.{GameConfig, GameEntry, LobbyCommand, PlayerId}
 import zodo.jeopardy.model.LobbyCommand._
 

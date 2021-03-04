@@ -35,14 +35,14 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           },
           stage match {
             case BeforeStart => renderWaitingForStart
-            case s: Round    => renderInRound(s.round, s.takenQuestions)
-            case s: Question => renderQuestion(hash, s.question, countdown)
+            case s: Round    => renderInRound(s.model, s.takenQuestions)
+            case s: Question => renderQuestion(hash, s.model, countdown)
             case s: AnswerAttempt =>
               div(
-                renderQuestion(hash, s.question, countdown),
+                renderQuestion(hash, s.model, countdown),
                 if (inGame.me.exists(_.id == s.activePlayer)) renderAnswerInput else void
               )
-            case s: Answer => renderInAnswer(hash, s.answer)
+            case s: Answer => renderInAnswer(hash, s.model)
           }
         )
       }

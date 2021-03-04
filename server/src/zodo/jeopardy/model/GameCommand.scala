@@ -1,7 +1,7 @@
 package zodo.jeopardy.model
 
-import zodo.jeopardy.actors.GameActor.CountdownId
 import zodo.jeopardy.actors.PlayerActorRef
+import zodo.jeopardy.actors.game.CountdownId
 
 sealed trait GameCommand[+_]
 object GameCommand {

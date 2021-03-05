@@ -14,4 +14,5 @@ object ClientEvent {
   case class SelectQuestion(questionId: String) extends ClientEvent
   case object HitButton extends ClientEvent
   case class GiveAnswer(value: String) extends ClientEvent
+  case class FinishQuestionReading(questionId: String) extends ClientEvent
 }

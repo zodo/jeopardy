@@ -95,6 +95,8 @@ object SessionActor {
             (game ! GameCommand.HitButton(playerId)).as(state)
           case (State(_, _, Some(game)), ClientEvent.GiveAnswer(value)) =>
             (game ! GameCommand.GiveAnswer(playerId, value)).as(state)
+          case (State(_, _, Some(game)), ClientEvent.FinishQuestionReading(questionId)) =>
+            (game ! GameCommand.FinishQuestion(playerId, questionId)).as(state)
           case s => log.error(s"unexpected transition OutgoingProxy <- $s").as(state)
 
         }

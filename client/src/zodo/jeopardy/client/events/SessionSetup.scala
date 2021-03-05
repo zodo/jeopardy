@@ -20,25 +20,30 @@ final class SessionSetup(system: ActorSystem, lobby: LobbyActorRef)(implicit
       res      <- lobby ? LobbyCommand.AddPlayer(playerId)
       handlers <- res match {
         case Right(()) =>
-          system
-            .make(
-              s"session-$playerId",
-              actors.Supervisor.none,
-              SessionActor.State(None, None, None),
-              SessionActor.handler(lobby, playerId, access)
-            )
-            .map(session =>
-              Extension.Handlers[AppTask, ViewState, ClientEvent](
-                onDestroy = () =>
-                  for {
-                    _ <- log.debug(s"Started session destroying $playerId")
-                    _ <- session ? ClientEvent.Leave
-                    _ <- session.stop
-                    _ <- log.debug(s"Finished session destroying $playerId")
-                  } yield (),
-                onMessage = message => session ! message
+          for {
+            session <- system
+              .make(
+                s"session-$playerId",
+                actors.Supervisor.none,
+                SessionActor.State(None, None, None),
+                SessionActor.handler(lobby, playerId, access)
               )
+
+            _ <- access.registerCallback(JsCallback.MediaFinished.name)(questionId =>
+              session ! ClientEvent.FinishQuestionReading(questionId)
             )
+
+          } yield Extension.Handlers[AppTask, ViewState, ClientEvent](
+            onDestroy = () =>
+              for {
+                _ <- log.debug(s"Started session destroying $playerId")
+                _ <- session ? ClientEvent.Leave
+                _ <- session.stop
+                _ <- log.debug(s"Finished session destroying $playerId")
+              } yield (),
+            onMessage = message => session ! message
+          )
+
         case Left(msg) =>
           access.transition(_ => ViewState.ErrorMessage(msg)).as(Extension.Handlers[AppTask, ViewState, ClientEvent]())
       }

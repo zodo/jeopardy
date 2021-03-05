@@ -11,11 +11,9 @@ object StartHandler extends Handler[Unit] {
       val alivePlayers = state.players.filterNot(_.disconnected)
       for {
         randomActivePlayer <- random.nextIntBounded(alivePlayers.size).map(idx => alivePlayers(idx))
-        (cdId, cd)         <- ctx.setCountdown(ctx.config.questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
-        newStage = Round(Idle(cdId), state.pack.rounds.head, Set(), randomActivePlayer.id)
+        _                  <- ctx.self ! GameCommand.ReturnToRound
+        newStage = Round(Idle("dummy"), state.pack.rounds.head, Set(), randomActivePlayer.id)
         _ <- ctx.broadcast(GameEvent.StageUpdated(newStage.toSnapshot))
-      } yield state
-        .withCd(cdId, cd)
-        .withStage(newStage)
+      } yield state.withStage(newStage)
   }
 }

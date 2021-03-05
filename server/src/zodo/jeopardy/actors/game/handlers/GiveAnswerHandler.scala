@@ -3,14 +3,14 @@ package zodo.jeopardy.actors.game.handlers
 import zodo.jeopardy.actors.game.State
 import zodo.jeopardy.actors.game.State.Stage
 import zodo.jeopardy.actors.game.State.Stage.RoundStage
-import zodo.jeopardy.actors.game.State.Stage.RoundStage.{AwaitingAnswer, Question}
+import zodo.jeopardy.actors.game.State.Stage.RoundStage.{AwaitingAnswer, Question, ReadyForHit}
 import zodo.jeopardy.model.GameCommand.{GiveAnswer, ShowAnswer}
 import zodo.jeopardy.model.{GameEvent, PackModel}
 
 object GiveAnswerHandler extends Handler[GiveAnswer] {
   override def process(m: GiveAnswer, ctx: HandlerContext) = {
     case state @ RoundStage(aa: AwaitingAnswer, r) =>
-      val question = aa.questionStage.model
+      val question = aa.model
       if (isCorrect(question.answers, m.answer)) {
         handleCorrectAnswer(m, ctx, state, aa, r, question)
       } else {
@@ -63,7 +63,7 @@ object GiveAnswerHandler extends Handler[GiveAnswer] {
         .withPlayerScore(m.playerId, _ - question.price)
         .withCd(cdId, cd)
         .withoutCd(aa.cdId)
-        .withRoundStage(Question(question, cdId))
+        .withRoundStage(ReadyForHit(question, cdId))
       _ <- ctx.broadcast(GameEvent.PlayerGaveAnswer(m.playerId, m.answer, isCorrect = false))
       _ <- ctx.broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)
       _ <- ctx.broadcast(GameEvent.StageUpdated(newState.stage.toSnapshot))

@@ -4,7 +4,7 @@ import zio._
 import zio.duration.durationInt
 import zodo.jeopardy.actors.game.State
 import zodo.jeopardy.actors.game.State.Stage.Round
-import zodo.jeopardy.actors.game.State.Stage.RoundStage.{Answer, AwaitingAnswer, Question}
+import zodo.jeopardy.actors.game.State.Stage.RoundStage.{Answer, AwaitingAnswer, Question, ReadyForHit}
 import zodo.jeopardy.model.GameCommand.{ReturnToRound, ShowAnswer}
 import zodo.jeopardy.model.GameEvent
 
@@ -12,7 +12,7 @@ object ShowAnswerHandler extends Handler[ShowAnswer] {
   override def process(m: ShowAnswer, ctx: HandlerContext) = {
     case state @ State(round: Round) =>
       val cdId = round.stage match {
-        case Question(_, cdId)             => Some(cdId)
+        case ReadyForHit(_, cdId)          => Some(cdId)
         case AwaitingAnswer(_, _, cdId, _) => Some(cdId)
         case _                             => None
       }

@@ -1,7 +1,7 @@
 package zodo.jeopardy.actors.game
-import zio.{Fiber, RIO}
+import zio.RIO
 import zodo.jeopardy.actors.PlayerActorRef
-import zodo.jeopardy.actors.game.State.Stage.RoundStage.{Answer, AwaitingAnswer, Idle, Question}
+import zodo.jeopardy.actors.game.State.Stage.RoundStage._
 import zodo.jeopardy.actors.game.State.Stage.{Round, RoundStage}
 import zodo.jeopardy.actors.game.State.{Countdown, Player, Stage}
 import zodo.jeopardy.model.{GameEvent, PackModel, PlayerId, StageSnapshot}
@@ -44,7 +44,8 @@ object State {
       override def toSnapshot = stage match {
         case _: Idle                      => StageSnapshot.Round(model, takenQuestions, activePlayer)
         case Question(question, _)        => StageSnapshot.Question(question)
-        case AwaitingAnswer(q, pId, _, _) => StageSnapshot.AnswerAttempt(q.model, pId)
+        case ReadyForHit(question, _)     => StageSnapshot.ReadyForHit(question)
+        case AwaitingAnswer(q, pId, _, _) => StageSnapshot.AnswerAttempt(q, pId)
         case Answer(answer)               => StageSnapshot.Answer(answer)
       }
     }
@@ -52,9 +53,10 @@ object State {
     sealed trait RoundStage
     object RoundStage {
       case class Idle(cdId: CountdownId) extends RoundStage
-      case class Question(model: PackModel.Question, cdId: CountdownId) extends RoundStage
+      case class Question(model: PackModel.Question, readyPlayers: Map[PlayerId, Int]) extends RoundStage
+      case class ReadyForHit(model: PackModel.Question, cdId: CountdownId) extends RoundStage
       case class AwaitingAnswer(
-        questionStage: Question,
+        model: PackModel.Question,
         answeringPlayer: String,
         cdId: CountdownId,
         questionSecondsPassed: Int

@@ -7,6 +7,7 @@ import zodo.jeopardy.actors.LobbyActorRef
 import zodo.jeopardy.actors.game.State.Stage.BeforeStart
 import zodo.jeopardy.actors.game.handlers._
 import zodo.jeopardy.model.GameCommand._
+import zodo.jeopardy.model.StageSnapshot.ReadyForHit
 import zodo.jeopardy.model.{GameCommand, GameConfig, PackModel}
 
 object GameActor {
@@ -22,16 +23,16 @@ object GameActor {
           self   <- context.self[GameCommand]
           ctx = new HandlerContext.Default(lobby, config, self, state)
           handler = msg match {
-            case m: AddPlayer         => AddPlayerHandler.process(m, ctx)
-            case m: DisconnectPlayer  => DisconnectPlayerHandler.process(m, ctx)
-            case Start                => StartHandler.process((), ctx)
-            case m: SelectQuestion    => SelectQuestionHandler.process(m, ctx)
-            case m: HitButton         => HitButtonHandler.process(m, ctx)
-            case m: GiveAnswer        => GiveAnswerHandler.process(m, ctx)
-            case m: ShowAnswer        => ShowAnswerHandler.process(m, ctx)
-            case ReturnToRound        => ReturnToRoundHandler.process((), ctx)
-            case m: TickCountdown     => TickCountdownHandler.process(m, ctx)
-            case ChooseRandomQuestion => ChooseRandomQuestionHandler.process((), ctx)
+            case m: AddPlayer        => AddPlayerHandler.process(m, ctx)
+            case m: DisconnectPlayer => DisconnectPlayerHandler.process(m, ctx)
+            case Start               => StartHandler.process((), ctx)
+            case m: SelectQuestion   => SelectQuestionHandler.process(m, ctx)
+            case m: FinishQuestion   => FinishQuestionHandler.process(m, ctx)
+            case m: HitButton        => HitButtonHandler.process(m, ctx)
+            case m: GiveAnswer       => GiveAnswerHandler.process(m, ctx)
+            case m: ShowAnswer       => ShowAnswerHandler.process(m, ctx)
+            case ReturnToRound       => ReturnToRoundHandler.process((), ctx)
+            case m: TickCountdown    => TickCountdownHandler.process(m, ctx)
           }
           newState <- handler.applyOrElse(state, (_: State) => UIO(state))
         } yield newState -> ().asInstanceOf[A]

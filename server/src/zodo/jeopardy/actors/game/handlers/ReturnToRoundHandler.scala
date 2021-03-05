@@ -1,5 +1,7 @@
 package zodo.jeopardy.actors.game.handlers
 
+import zio.URIO
+import zio.random.Random
 import zodo.jeopardy.actors.game.State
 import zodo.jeopardy.actors.game.State.Stage.Round
 import zodo.jeopardy.actors.game.State.Stage.RoundStage.Idle
@@ -11,21 +13,33 @@ object ReturnToRoundHandler extends Handler[Unit] {
       val hasMoreQuestions = round.model.themes.flatMap(_.questions).size > round.takenQuestions.size
       val hasMoreRounds = state.pack.rounds.last.id != round.model.id
 
-      for {
-        (cdId, cd) <- ctx.setCountdown(ctx.config.questionSelectionTimeout)(_ ! GameCommand.ChooseRandomQuestion)
-        newStage =
-          if (hasMoreQuestions) {
-            round.copy(stage = Idle(cdId))
-          } else if (hasMoreRounds) {
-            val newRound = state.pack.rounds(state.pack.rounds.indexWhere(_.id == round.model.id) + 1)
-            Round(Idle(cdId), newRound, Set(), round.activePlayer)
-          } else {
-            Round(Idle(cdId), state.pack.rounds.head, Set(), round.activePlayer)
-          }
+      val newStage =
+        if (hasMoreQuestions) {
+          round
+        } else if (hasMoreRounds) {
+          val newRound = state.pack.rounds(state.pack.rounds.indexWhere(_.id == round.model.id) + 1)
+          Round(round.stage, newRound, Set(), round.activePlayer)
+        } else {
+          Round(round.stage, state.pack.rounds.head, Set(), round.activePlayer)
+        }
 
-        _ <- ctx.broadcast(GameEvent.StageUpdated(newStage.toSnapshot))
+      for {
+        randomQuestion <- randomQuestionOnTimeout(newStage)
+        (cdId, cd) <- ctx.setCountdown(ctx.config.questionSelectionTimeout)(
+          _ ! GameCommand.SelectQuestion(newStage.activePlayer, randomQuestion)
+        )
+        stageWithCd = newStage.copy(stage = Idle(cdId))
+        _ <- ctx.broadcast(GameEvent.StageUpdated(stageWithCd.toSnapshot))
       } yield state
-        .withStage(newStage)
+        .withStage(stageWithCd)
         .withCd(cdId, cd)
+  }
+
+  private def randomQuestionOnTimeout(round: Round): URIO[Random, String] = {
+    val availableQuestions = round.model.themes.flatMap(_.questions).filterNot(q => round.takenQuestions.contains(q.id))
+    zio.random
+      .nextIntBounded(availableQuestions.length)
+      .map(availableQuestions)
+      .map(_.id)
   }
 }

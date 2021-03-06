@@ -2,7 +2,7 @@ package zodo.jeopardy.actors.game.handlers
 
 import zodo.jeopardy.actors.game.State
 import zodo.jeopardy.actors.game.State.Stage
-import zodo.jeopardy.actors.game.State.Stage.RoundStage
+import zodo.jeopardy.actors.game.State.Stage.{PlayerAnswer, RoundStage}
 import zodo.jeopardy.actors.game.State.Stage.RoundStage.{AwaitingAnswer, Question, ReadyForHit}
 import zodo.jeopardy.model.GameCommand.{GiveAnswer, ShowAnswer}
 import zodo.jeopardy.model.{GameEvent, PackModel}
@@ -14,7 +14,7 @@ object GiveAnswerHandler extends Handler[GiveAnswer] {
       if (isCorrect(question.answers, m.answer)) {
         handleCorrectAnswer(m, ctx, state, aa, r, question)
       } else {
-        handleIncorrectAnswer(m, ctx, state, aa, question)
+        handleIncorrectAnswer(m, ctx, state, aa, r, question)
       }
   }
 
@@ -37,7 +37,16 @@ object GiveAnswerHandler extends Handler[GiveAnswer] {
       .withStage(
         r.copy(
           takenQuestions = r.takenQuestions + question.id,
-          activePlayer = m.playerId
+          activePlayer = m.playerId,
+          previousAnswers = r.previousAnswers
+            .withAnswer(
+              PlayerAnswer(
+                m.playerId,
+                m.answer,
+                isCorrect = true,
+                scoreDiff = question.price
+              )
+            )
         )
       )
       .withoutCd(aa.cdId)
@@ -54,6 +63,7 @@ object GiveAnswerHandler extends Handler[GiveAnswer] {
     ctx: HandlerContext,
     state: State,
     aa: AwaitingAnswer,
+    r: Stage.Round,
     question: PackModel.Question
   ) = {
     for {
@@ -63,6 +73,18 @@ object GiveAnswerHandler extends Handler[GiveAnswer] {
         .withPlayerScore(m.playerId, _ - question.price)
         .withCd(cdId, cd)
         .withoutCd(aa.cdId)
+        .withStage(
+          r.copy(previousAnswers =
+            r.previousAnswers.withAnswer(
+              PlayerAnswer(
+                m.playerId,
+                m.answer,
+                isCorrect = false,
+                scoreDiff = -question.price
+              )
+            )
+          )
+        )
         .withRoundStage(ReadyForHit(question, cdId))
       _ <- ctx.broadcast(GameEvent.PlayerGaveAnswer(m.playerId, m.answer, isCorrect = false))
       _ <- ctx.broadcast(GameEvent.PlayersUpdated(newState.players.map(_.toMessage)), newState)

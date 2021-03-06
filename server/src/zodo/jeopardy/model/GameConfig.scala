@@ -4,5 +4,6 @@ case class GameConfig(
   questionSelectionTimeout: Int,
   hitTheButtonTimeout: Int,
   answerTimeout: Int,
-  questionReadingTimeout: Int
+  questionReadingTimeout: Int,
+  appealTimeout: Int
 )

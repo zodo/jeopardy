@@ -33,6 +33,8 @@ object GameActor {
             case m: ShowAnswer       => ShowAnswerHandler.process(m, ctx)
             case ReturnToRound       => ReturnToRoundHandler.process((), ctx)
             case m: TickCountdown    => TickCountdownHandler.process(m, ctx)
+            case m: StartAppeal      => StartAppealHandler.process(m, ctx)
+            case m: ResolveAppeal    => ResolveAppealHandler.process(m, ctx)
           }
           newState <- handler.applyOrElse(state, (_: State) => UIO(state))
         } yield newState -> ().asInstanceOf[A]

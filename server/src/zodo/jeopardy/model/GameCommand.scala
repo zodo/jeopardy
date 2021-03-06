@@ -15,4 +15,6 @@ object GameCommand {
   case class ShowAnswer(question: PackModel.Question) extends GameCommand[Unit]
   case class TickCountdown(tick: Int, id: CountdownId) extends GameCommand[Unit]
   case class FinishQuestion(playerId: PlayerId, questionId: String, force: Boolean = false) extends GameCommand[Unit]
+  case class StartAppeal(playerId: PlayerId) extends GameCommand[Unit]
+  case class ResolveAppeal(playerId: PlayerId, resolution: Boolean) extends GameCommand[Unit]
 }

@@ -20,7 +20,6 @@ object TickCountdownHandler extends Handler[TickCountdown] {
               .withoutCd(m.id)
           } else {
             for {
-              _ <- log.debug(s"counting - ${m.tick}/${cd.max}! Id: ${m.id}")
               _ <- ctx.broadcast(CountdownUpdated(Some(CountdownModel(m.tick, cd.max))))
             } yield state.withCd(m.id, cd.copy(value = m.tick))
           }

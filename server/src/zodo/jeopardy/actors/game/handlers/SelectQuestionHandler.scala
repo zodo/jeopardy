@@ -2,7 +2,7 @@ package zodo.jeopardy.actors.game.handlers
 
 import zio._
 import zio.duration.durationInt
-import zodo.jeopardy.actors.game.State.Stage.RoundStage
+import zodo.jeopardy.actors.game.State.Stage.{AnswersSummary, RoundStage}
 import zodo.jeopardy.actors.game.State.Stage.RoundStage.{Idle, Question}
 import zodo.jeopardy.model.GameCommand.{SelectQuestion, ShowAnswer}
 import zodo.jeopardy.model.{GameCommand, GameEvent}
@@ -19,7 +19,10 @@ object SelectQuestionHandler extends Handler[SelectQuestion] {
           .foreachPar_(players)(p => ctx.self ! GameCommand.FinishQuestion(p, m.questionId, force = true))
           .delay(ctx.config.questionReadingTimeout.seconds)
           .fork
-        newStage = round.copy(stage = Question(question, players.map(_ -> 0).toMap))
+        newStage = round.copy(
+          stage = Question(question, players.map(_ -> 0).toMap),
+          previousAnswers = AnswersSummary(Some(question), Seq())
+        )
         _ <- ctx.broadcast(GameEvent.StageUpdated(newStage.toSnapshot))
         _ <- ctx.stoppedCountdown(i.cdId)
       } yield state

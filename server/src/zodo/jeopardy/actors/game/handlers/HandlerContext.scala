@@ -36,7 +36,7 @@ object HandlerContext {
 
     override def broadcast(m: GameEvent[Unit], useState: State) =
       ZIO
-        .foreachPar(useState.players.filterNot(_.disconnected))(p => log.debug(s"Sending $m to $p") *> (p.reply ! m))
+        .foreachPar(useState.players.filterNot(_.disconnected))(_.reply ! m)
         .unit
 
     override def setCountdown(seconds: Int, startsFrom: Int = 1)(

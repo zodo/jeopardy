@@ -2,13 +2,12 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
-import levsha.events.EventPhase
 import levsha.events.EventPhase.AtTarget
 import zio.logging.log
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.{ClientEvent, JsCallback}
 import zodo.jeopardy.client.views.ViewState._
-import zodo.jeopardy.model.{PackModel, PlayerId}
+import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
 import zodo.jeopardy.model.StageSnapshot._
 
@@ -23,7 +22,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   import html._
 
   def render(inGame: ViewState.InGame): DocumentNode = inGame match {
-    case ViewState.InGame(gameId, hash, players, playerEvents, stage, countdown) =>
+    case state @ ViewState.InGame(gameId, hash, players, playerEvents, stage, countdown) =>
       optimize {
         div(
           h2(s"In game '$gameId' with pack $hash"),
@@ -38,17 +37,27 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             case None => void
           },
           stage match {
-            case BeforeStart    => renderWaitingForStart
-            case s: Round       => renderInRound(s.model, s.takenQuestions)
-            case s: Question    => renderQuestion(hash, s.model, firstTime = true, readyForHit = false)
-            case s: ReadyForHit => renderQuestion(hash, s.model, firstTime = false, readyForHit = true)
+            case BeforeStart => renderWaitingForStart
+            case s: Round    => renderInRound(s.model, s.takenQuestions)
+            case s: Question =>
+              renderQuestion(hash, s.model, firstTime = true, readyForHit = false, canHit = true)
+            case s: ReadyForHit =>
+              renderQuestion(hash, s.model, firstTime = false, readyForHit = true, canHit = state.me.canHitButton)
             case s: AnswerAttempt =>
               div(
-                renderQuestion(hash, s.model, firstTime = false, readyForHit = false),
-                if (inGame.me.exists(_.id == s.activePlayer)) renderAnswerInput else void
+                renderQuestion(hash, s.model, firstTime = false, readyForHit = false, canHit = false),
+                if (state.me.canAnswer) renderAnswerInput else void
               )
-            case s: Answer => renderInAnswer(hash, s.model)
-          }
+            case s: Answer       => renderInAnswer(hash, s.model)
+            case s: Appeal       => renderAppeal(s.answer, s.model, state.me.canVoteAppeal)
+            case s: AppealResult => renderAppealResult(s.resolution)
+          },
+          if (state.me.canAppeal) {
+            button(
+              "Appeal!",
+              event("click")(_.publish(ClientEvent.StartAppeal))
+            )
+          } else void
         )
       }
   }
@@ -68,6 +77,12 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
         playerEvents.guess(id) match {
           case Some(g) => li(s"Guess - $g")
           case None    => void
+        },
+        playerEvents.appeal(id) match {
+          case Some(AppealInitiated) => li("Appeal!")
+          case Some(AppealAgree)     => li("I'm OK with appeal")
+          case Some(AppealDisagree)  => li("I'm not OK with appeal")
+          case None                  => void
         }
       )
     )
@@ -108,12 +123,14 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     hash: String,
     question: PackModel.Question,
     firstTime: Boolean,
-    readyForHit: Boolean
+    readyForHit: Boolean,
+    canHit: Boolean
   ): DocumentNode = {
     div(
       h2("Question"),
       div(
         button(
+          if (!canHit) disabled else void,
           backgroundColor @= (if (readyForHit) "red" else "green"),
           autofocus := "true",
           "I know!",
@@ -190,5 +207,44 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     div(
       h2(answer.correct.head)
     )
+  }
+
+  private def renderAppeal(answer: String, model: PackModel.Question, canVote: Boolean) = {
+    div(
+      h2("Appeal"),
+      div("Question: "),
+      model.fragments.collect {
+        case Text(value) => div(value)
+      },
+      div(s"Answers was: $answer"),
+      div(s"Correct answers: "),
+      ul(
+        model.answers.correct.map(li(_))
+      ),
+      if (model.answers.incorrect.nonEmpty) {
+        div(
+          "incorrect answers",
+          ul(
+            model.answers.incorrect.map(li(_))
+          )
+        )
+      } else void,
+      if (canVote) {
+        div(
+          button(
+            "Agree",
+            event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = true)))
+          ),
+          button(
+            "Disagree",
+            event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = false)))
+          )
+        )
+      } else void
+    )
+  }
+
+  private def renderAppealResult(resolution: Boolean) = {
+    h2(s"Appeal ${if (resolution) "approved" else "not approved"}")
   }
 }

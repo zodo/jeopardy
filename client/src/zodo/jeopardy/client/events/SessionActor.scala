@@ -97,6 +97,13 @@ object SessionActor {
             (game ! GameCommand.GiveAnswer(playerId, value)).as(state)
           case (State(_, _, Some(game)), ClientEvent.FinishQuestionReading(questionId)) =>
             (game ! GameCommand.FinishQuestion(playerId, questionId)).as(state)
+          case (State(_, _, Some(game)), ClientEvent.StartAppeal) =>
+            for {
+              _ <- log.info("Appealing")
+              _ <- game ! GameCommand.StartAppeal(playerId)
+            } yield state
+          case (State(_, _, Some(game)), ClientEvent.ResolveAppeal(resolution)) =>
+            (game ! GameCommand.ResolveAppeal(playerId, resolution)).as(state)
           case s => log.error(s"unexpected transition OutgoingProxy <- $s").as(state)
 
         }

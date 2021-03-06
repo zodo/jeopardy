@@ -1,6 +1,6 @@
 package zodo.jeopardy.client.views
 
-import zodo.jeopardy.model.StageSnapshot.BeforeStart
+import zodo.jeopardy.model.StageSnapshot.{AnswerAttempt, BeforeStart, Round}
 import zodo.jeopardy.model.{PlayerId, StageSnapshot}
 
 sealed trait ViewState
@@ -17,9 +17,35 @@ object ViewState {
     stage: StageSnapshot = BeforeStart,
     countdown: Option[Countdown] = None
   ) extends ViewState {
-    val me: Option[PlayerInfo] = players.find(_.me)
+    val me = {
+      players.find(_.me) match {
+        case Some(player) =>
+          Me(
+            canHitButton = stage match {
+              case r: Round => !r.previousAnswers.contains(player.id)
+              case _        => true
+            },
+            canAnswer = stage match {
+              case a: AnswerAttempt => a.activePlayer == player.id
+              case _                => false
+            },
+            canAppeal = stage match {
+              case r: Round => r.previousAnswers.get(player.id).contains(false) && !r.triedToAppeal.contains(player.id)
+              case _        => false
+            },
+            canVoteAppeal = !playerEvents.appeal(player.id).contains(AppealInitiated)
+          )
+        case None => Me()
+      }
+    }
+
     def withPlayerEvent(id: PlayerId, map: PlayerEvent => PlayerEvent): InGame = {
       copy(playerEvents = playerEvents.withPlayerEvent(id, map))
+    }
+    def withPlayerEvent(map: (PlayerId, PlayerEvent) => PlayerEvent): InGame = {
+      copy(playerEvents = PlayerEvents(playerEvents.events.map {
+        case (key, value) => key -> map(key, value)
+      }))
     }
   }
 
@@ -52,16 +78,31 @@ object ViewState {
     def isButtonPressed(id: PlayerId) = events.get(id).fold(false)(_.buttonPressed)
 
     def guess(id: PlayerId) = events.get(id).flatMap(_.guess)
+
+    def appeal(id: PlayerId) = events.get(id).flatMap(_.appeal)
   }
 
   case class PlayerEvent(
     buttonPressed: Boolean = false,
-    guess: Option[PlayerGuess] = None
+    guess: Option[PlayerGuess] = None,
+    appeal: Option[AppealState] = None
   )
 
   case class PlayerGuess(answer: String, isCorrect: Boolean)
 
+  sealed trait AppealState
+  case object AppealAgree extends AppealState
+  case object AppealDisagree extends AppealState
+  case object AppealInitiated extends AppealState
+
   case class Countdown(value: Int, max: Int) {
     val remaining = max - value
   }
+
+  case class Me(
+    canHitButton: Boolean = false,
+    canAnswer: Boolean = false,
+    canAppeal: Boolean = false,
+    canVoteAppeal: Boolean = false
+  )
 }

@@ -25,6 +25,9 @@ case class State(
       .map(p => if (p.id == playerId) p.copy(score = adjustScore(p.score)) else p)
     copy(players = newPlayers)
   }
+  def withPlayers(map: Player => Player): State = {
+    copy(players = players.map(map))
+  }
 }
 
 object State {
@@ -39,14 +42,24 @@ object State {
       stage: RoundStage,
       model: PackModel.Round,
       takenQuestions: Set[String],
-      activePlayer: String
+      activePlayer: String,
+      previousAnswers: AnswersSummary
     ) extends Stage {
       override def toSnapshot = stage match {
-        case _: Idle                      => StageSnapshot.Round(model, takenQuestions, activePlayer)
+        case _: Idle =>
+          StageSnapshot.Round(
+            model,
+            takenQuestions,
+            activePlayer,
+            previousAnswers.players,
+            previousAnswers.triedToAppeal
+          )
         case Question(question, _)        => StageSnapshot.Question(question)
         case ReadyForHit(question, _)     => StageSnapshot.ReadyForHit(question)
         case AwaitingAnswer(q, pId, _, _) => StageSnapshot.AnswerAttempt(q, pId)
         case Answer(answer)               => StageSnapshot.Answer(answer)
+        case Appeal(_, m, a, p, r)        => StageSnapshot.Appeal(m, a, p, r.filter(_._2).keySet, r.filterNot(_._2).keySet)
+        case AppealResult(r)              => StageSnapshot.AppealResult(r)
       }
     }
 
@@ -62,7 +75,14 @@ object State {
         questionSecondsPassed: Int
       ) extends RoundStage
       case class Answer(model: PackModel.Answers) extends RoundStage
-
+      case class Appeal(
+        cdId: CountdownId,
+        model: PackModel.Question,
+        answer: String,
+        playerId: PlayerId,
+        resolutions: Map[PlayerId, Boolean]
+      ) extends RoundStage
+      case class AppealResult(resolution: Boolean) extends RoundStage
       def unapply(state: State): Option[(RoundStage, Round)] = {
         state.stage match {
           case r: Round => Some((r.stage, r))
@@ -70,6 +90,34 @@ object State {
         }
       }
     }
+
+    case class AnswersSummary(
+      model: Option[PackModel.Question],
+      answers: Seq[PlayerAnswer],
+      triedToAppeal: Set[PlayerId] = Set()
+    ) {
+      def withAnswer(a: PlayerAnswer) = copy(answers = answers :+ a)
+      val players: Map[PlayerId, Boolean] = answers
+        .map(a => a.playerId -> a.isCorrect)
+        .toMap
+
+      def rollbackScores(appealPlayerId: PlayerId): Map[PlayerId, Int] = {
+        val idx = answers.indexWhere(_.playerId == appealPlayerId)
+        if (idx >= 0) {
+          answers
+            .drop(idx)
+            .map(a => a.playerId -> a.scoreDiff)
+            .toMap
+        } else Map()
+      }
+    }
+
+    case class PlayerAnswer(
+      playerId: PlayerId,
+      text: String,
+      isCorrect: Boolean,
+      scoreDiff: Int
+    )
   }
 
   case class Player(

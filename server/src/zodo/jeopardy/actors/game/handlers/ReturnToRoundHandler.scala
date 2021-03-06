@@ -18,9 +18,9 @@ object ReturnToRoundHandler extends Handler[Unit] {
           round
         } else if (hasMoreRounds) {
           val newRound = state.pack.rounds(state.pack.rounds.indexWhere(_.id == round.model.id) + 1)
-          Round(round.stage, newRound, Set(), round.activePlayer)
+          Round(round.stage, newRound, Set(), round.activePlayer, round.previousAnswers)
         } else {
-          Round(round.stage, state.pack.rounds.head, Set(), round.activePlayer)
+          Round(round.stage, state.pack.rounds.head, Set(), round.activePlayer, round.previousAnswers)
         }
 
       for {

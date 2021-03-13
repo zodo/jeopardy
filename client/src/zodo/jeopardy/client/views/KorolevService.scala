@@ -44,14 +44,20 @@ class KorolevService(implicit eff: Effect[AppTask], ec: ExecutionContext) {
           Html(
             head(
               link(
-                href := "https://cdn.jsdelivr.net/npm/picnic@6/picnic.min.css",
-                rel := "stylesheet",
-                `type` := "text/css"
+                href := "https://unpkg.com/nes.css@2.3.0/css/nes.min.css",
+                rel := "stylesheet"
+              ),
+              link(
+                href := "https://fonts.gstatic.com",
+                rel := "preconnect"
+              ),
+              link(
+                href := "https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap",
+                rel := "stylesheet"
               ),
               link(
                 href := "/static/main.css",
-                rel := "stylesheet",
-                `type` := "text/css"
+                rel := "stylesheet"
               )
             ),
             body(

@@ -12,7 +12,7 @@ object SiqXmlContentParser {
         (r \ "themes" \\ "theme").map(t =>
           PackModel.Theme(
             t \@ "name",
-            (t \ "questions" \\ "question").map(mapQuestion)
+            (t \ "questions" \\ "question").map(mapQuestion(t \@ "name"))
           )
         ),
         if ((r \@ "type") == "final") PackModel.RoundType.Final else PackModel.RoundType.Standard
@@ -20,7 +20,7 @@ object SiqXmlContentParser {
     )
   )
 
-  private[siq] def mapQuestion(q: NodeSeq): PackModel.Question = {
+  private[siq] def mapQuestion(theme: String)(q: NodeSeq): PackModel.Question = {
     val atoms = q \ "scenario" \\ "atom"
     val markerIndex = atoms.indexWhere(a => (a \@ "type") == "marker")
     val (questions, mediaAnswers) = if (markerIndex > 0) {
@@ -36,7 +36,8 @@ object SiqXmlContentParser {
         (q \ "wrong" \\ "answer").map(_.text),
         mediaAnswers
       ),
-      (q \@ "price").toInt
+      (q \@ "price").toInt,
+      theme
     )
   }
 

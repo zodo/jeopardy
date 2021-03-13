@@ -2,10 +2,12 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
+import levsha.dsl.html.div
 import levsha.events.EventPhase.AtTarget
 import zio.logging.log
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.{ClientEvent, JsCallback}
+import zodo.jeopardy.client.views.ViewState.PlayerState.ThinkingAboutAnswer
 import zodo.jeopardy.client.views.ViewState._
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
@@ -25,110 +27,237 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     case state @ ViewState.InGame(gameId, hash, players, playerEvents, stage, countdown) =>
       optimize {
         div(
-          h2(s"In game '$gameId' with pack $hash"),
-          players
-            .map(renderPlayer(playerEvents)),
-          countdown match {
-            case Some(c) =>
-              progress(
-                max := c.max.toString,
-                value := c.remaining.toString
+          `class` := "container",
+          div(
+            `class` := "player-list",
+            players
+              .map(renderPlayer(playerEvents))
+          ),
+          div(
+            `class` := "game-zone",
+            stage match {
+              case BeforeStart => renderWaitingForStart(gameId)
+              case s: Round    => renderInRound(s, countdown)
+              case s: Question =>
+                renderQuestion(
+                  hash,
+                  s.model,
+                  countdown,
+                  firstTime = true,
+                  readyForHit = false,
+                  canHit = true,
+                  canAnswer = false
+                )
+              case s: ReadyForHit =>
+                renderQuestion(
+                  hash,
+                  s.model,
+                  countdown,
+                  firstTime = false,
+                  readyForHit = true,
+                  canHit = state.me.canHitButton,
+                  canAnswer = false
+                )
+              case s: AnswerAttempt =>
+                renderQuestion(
+                  hash,
+                  s.model,
+                  countdown,
+                  firstTime = false,
+                  readyForHit = false,
+                  canHit = false,
+                  canAnswer = state.me.canAnswer
+                )
+              case s: Answer       => renderInAnswer(hash, s.model)
+              case s: Appeal       => renderAppeal(s.answer, s.model, state.me.canVoteAppeal)
+              case s: AppealResult => renderAppealResult(s.resolution)
+            },
+            if (state.me.canAppeal) {
+              button(
+                "Appeal!",
+                event("click")(_.publish(ClientEvent.StartAppeal))
               )
-            case None => void
-          },
-          stage match {
-            case BeforeStart => renderWaitingForStart
-            case s: Round    => renderInRound(s.model, s.takenQuestions)
-            case s: Question =>
-              renderQuestion(hash, s.model, firstTime = true, readyForHit = false, canHit = true)
-            case s: ReadyForHit =>
-              renderQuestion(hash, s.model, firstTime = false, readyForHit = true, canHit = state.me.canHitButton)
-            case s: AnswerAttempt =>
-              div(
-                renderQuestion(hash, s.model, firstTime = false, readyForHit = false, canHit = false),
-                if (state.me.canAnswer) renderAnswerInput else void
-              )
-            case s: Answer       => renderInAnswer(hash, s.model)
-            case s: Appeal       => renderAppeal(s.answer, s.model, state.me.canVoteAppeal)
-            case s: AppealResult => renderAppealResult(s.resolution)
-          },
-          if (state.me.canAppeal) {
-            button(
-              "Appeal!",
-              event("click")(_.publish(ClientEvent.StartAppeal))
-            )
-          } else void
+            } else void
+          )
         )
       }
+  }
+
+  private def renderCountdown(c: Option[Countdown]) = optimize {
+    c match {
+      case Some(c) =>
+        div(
+          clazz := "game-zone__progress",
+          progress(
+            clazz := "nes-progress",
+            max := c.max.toString,
+            value := c.remaining.toString
+          )
+        )
+      case None => void
+    }
   }
 
   private def renderPlayer(playerEvents: PlayerEvents)(info: PlayerInfo): DocumentNode = {
     val PlayerInfo(id, name, score, state, me, disconnected) = info
 
+    val answering = if (state == ThinkingAboutAnswer) "player__answering" else ""
+    val hitButton = if (playerEvents.isButtonPressed(id)) "player__hit-button" else ""
+    val dscnnctd = if (disconnected) "player__disconnected" else ""
+
     div(
-      when(disconnected)(color @= "gray"),
-      title := s"Id - $id",
-      ul(
-        h3(
-          when(playerEvents.isButtonPressed(id))(backgroundColor @= "red"),
-          s"$name${if (me) "(its me!)" else ""} - $state"
+      `class` := s"player $answering $hitButton $dscnnctd",
+      div(
+        `class` := "player__content",
+        p(
+          `class` := "player__name",
+          title := name,
+          name + (if (me) " (me)" else "")
         ),
-        li(s"Score - $score"),
-        playerEvents.guess(id) match {
-          case Some(g) => li(s"Guess - $g")
-          case None    => void
-        },
-        playerEvents.appeal(id) match {
-          case Some(AppealInitiated) => li("Appeal!")
-          case Some(AppealAgree)     => li("I'm OK with appeal")
-          case Some(AppealDisagree)  => li("I'm not OK with appeal")
-          case None                  => void
-        }
-      )
-    )
-  }
-
-  private def renderWaitingForStart: DocumentNode = {
-    div(
-      h2("Waiting for start"),
-      button(
-        "start now!",
-        event("click")(_.publish(ClientEvent.StartGame))
-      )
-    )
-  }
-
-  private def renderInRound(round: PackModel.Round, takenQuestions: Set[String]): DocumentNode = {
-    div(
-      h2(round.name),
-      when(round.typ == PackModel.RoundType.Final)(span("Final!")),
-      tbody(
-        round.themes.map(theme =>
-          tr(
-            td(theme.name),
-            theme.questions.map(question =>
-              td(
-                when(takenQuestions.contains(question.id))(color @= "gray"),
-                question.price.toString(),
-                event("click")(_.publish(ClientEvent.SelectQuestion(question.id)))
+        p(
+          title := id,
+          score.toString
+        )
+      ),
+      playerEvents.guess(id) match {
+        case Some(g) =>
+          span(
+            clazz := "guess",
+            div(
+              clazz := "guess-popup",
+              div(
+                clazz := "nes-balloon from-left",
+                p(g.answer)
               )
             )
+          )
+        case None => void
+      },
+      playerEvents.appeal(id) match {
+        case Some(AppealInitiated) => div("Appeal!")
+        case Some(AppealAgree)     => div("I'm OK with appeal")
+        case Some(AppealDisagree)  => div("I'm not OK with appeal")
+        case None                  => void
+      }
+    )
+  }
+
+  private def renderWaitingForStart(gameId: String): DocumentNode = optimize {
+    Seq(
+      div(
+        clazz := "game-zone__wait center-container",
+        div(
+          div(
+            p(
+              "Game #",
+              code(gameId)
+            )
+          ),
+          form(
+            button(
+              `type` := "submit",
+              clazz := "nes-btn is-success",
+              "Start now"
+            ),
+            event("submit")(_.publish(ClientEvent.StartGame))
           )
         )
       )
     )
   }
 
+  private def renderInRound(round: Round, c: Option[Countdown]): DocumentNode = {
+    Seq(
+      div(
+        clazz := "game-zone__header",
+        round.model.name
+      ),
+      div(
+        clazz := "game-zone__board",
+        div(
+          `class` := "fragment",
+          tbody(
+            clazz := "nes-table is-bordered is-centered",
+            round.model.themes.map(theme =>
+              tr(
+                td(theme.name),
+                theme.questions.map(question =>
+                  td(
+                    when(round.takenQuestions.contains(question.id))(clazz := "table__taken-question"),
+                    question.price.toString(),
+                    event("click")(_.publish(ClientEvent.SelectQuestion(question.id)))
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+      renderCountdown(c)
+    )
+  }
+
   private def renderQuestion(
     hash: String,
     question: PackModel.Question,
+    c: Option[Countdown],
     firstTime: Boolean,
     readyForHit: Boolean,
-    canHit: Boolean
-  ): DocumentNode = {
-    div(
-      h2("Question"),
+    canHit: Boolean,
+    canAnswer: Boolean
+  ): DocumentNode = optimize {
+    Seq(
       div(
+        clazz := "game-zone__header",
+        s"${question.theme} - ${question.price}"
+      ),
+      div(
+        clazz := "game-zone__board",
+        question.fragments.map {
+          case Text(value) =>
+            div(
+              `class` := "fragment",
+              delay((value.length / 15 + 3).seconds) { access =>
+                log.debug("Text ended!") *>
+                  access.publish(ClientEvent.FinishQuestionReading(question.id))
+              },
+              p(value)
+            )
+          case Image(url) =>
+            div(
+              `class` := "fragment image-fragment",
+              img(
+                delay((Random.nextInt(5) + 3).seconds) { access =>
+                  log.debug("Image ended!") *>
+                    access.publish(ClientEvent.FinishQuestionReading(question.id))
+                },
+                src := s"/media/$hash/Images/${url.drop(1)}"
+              )
+            )
+          case Audio(url) =>
+            div(
+              `class` := "fragment audio-fragment",
+              div("♪"),
+              audio(
+                AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
+                src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                if (firstTime) autoplay := "autoplay" else void
+              )
+            )
+          case Video(url) =>
+            div(
+              `class` := "fragment image-fragment",
+              video(
+                AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
+                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                if (firstTime) autoplay := "autoplay" else void
+              )
+            )
+        }
+      ),
+      renderCountdown(c),
+      div(
+        `class` := "game-zone__controls",
         button(
           if (!canHit) disabled else void,
           backgroundColor @= (if (readyForHit) "red" else "green"),
@@ -137,53 +266,15 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
           event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
           event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
-        )
-      ),
-      question.fragments.map(fragment =>
-        div(
-          fragment match {
-            case Text(value) =>
-              h1(
-                delay((value.length / 15 + 3).seconds) { access =>
-                  log.debug("Text ended!") *>
-                    access.publish(ClientEvent.FinishQuestionReading(question.id))
-                },
-                value
-              )
-            case Image(url) =>
-              img(
-                delay((Random.nextInt(5) + 3).seconds) { access =>
-                  log.debug("Image ended!") *>
-                    access.publish(ClientEvent.FinishQuestionReading(question.id))
-                },
-                width @= "600px",
-                src := s"/media/$hash/Images/${url.drop(1)}"
-              )
-            case Audio(url) =>
-              div(
-                p("AUDIO"),
-                audio(
-                  AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                  src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
-                  if (firstTime) autoplay := "autoplay" else void
-                )
-              )
-
-            case Video(url) =>
-              video(
-                AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
-                if (firstTime) autoplay := "autoplay" else void
-              )
-          }
-        )
+        ),
+        if (canAnswer) renderAnswerInput else void
       )
     )
   }
 
   private val answerInput = elementId()
 
-  private def renderAnswerInput: DocumentNode = {
+  private def renderAnswerInput: DocumentNode = optimize {
     div(
       form(
         input(

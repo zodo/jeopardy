@@ -26,21 +26,16 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
   )
 
   def render(state: ViewState): DocumentNode = optimize {
-    div(
-      TagDef("main")(
-        style := "width: 1000px; margin: 20px auto",
-        state match {
-          case RedirectToGame(id) =>
-            p(
-              "Redirecting...",
-              delay(1.seconds)(_.publish(ClientEvent.EnterGame(id)))
-            )
-          case s: ErrorMessage => errorMessageView.render(s)
-          case Anonymous       => anonymousView.render()
-          case s: Authorized   => authorizedView.render(s)
-          case s: InGame       => inGameView.render(s)
-        }
-      )
-    )
+    state match {
+      case RedirectToGame(id) =>
+        p(
+          "Redirecting...",
+          delay(1.seconds)(_.publish(ClientEvent.EnterGame(id)))
+        )
+      case s: ErrorMessage => errorMessageView.render(s)
+      case Anonymous       => anonymousView.render()
+      case s: Authorized   => authorizedView.render(s)
+      case s: InGame       => inGameView.render(s)
+    }
   }
 }

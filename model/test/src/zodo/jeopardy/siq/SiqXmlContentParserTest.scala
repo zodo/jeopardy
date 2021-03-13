@@ -29,7 +29,8 @@ object SiqXmlContentParserTest extends TestSuite {
               </wrong>
             </question>
 
-        val result = SiqXmlContentParser.mapQuestion(source)
+        val theme = "theme"
+        val result = SiqXmlContentParser.mapQuestion(theme)(source)
         val expected = Question(
           Seq(
             Fragment.Text("question 1"),
@@ -46,7 +47,8 @@ object SiqXmlContentParserTest extends TestSuite {
               Fragment.Image("@answer.jpg")
             )
           ),
-          price = 42
+          price = 42,
+          theme
         )
 
         assert(result == expected)
@@ -64,7 +66,9 @@ object SiqXmlContentParserTest extends TestSuite {
           </question>
         }
 
-        val result = SiqXmlContentParser.mapQuestion(source)
+        val theme = "theme"
+
+        val result = SiqXmlContentParser.mapQuestion(theme)(source)
         val expected = Question(
           Seq(Fragment.Text("question 1")),
           Answers(
@@ -72,7 +76,8 @@ object SiqXmlContentParserTest extends TestSuite {
             Nil,
             Nil
           ),
-          price = 42
+          price = 42,
+          theme
         )
 
         assert(result == expected)

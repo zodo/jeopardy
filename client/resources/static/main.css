@@ -1,0 +1,164 @@
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    font-family: 'Press Start 2P', cursive;
+    user-select: none;
+}
+
+p {
+    margin: 0;
+}
+
+code {
+    user-select: all;
+}
+
+.container {
+    height: calc(100vh -0px);
+    /*  ipad fix */
+    display: flex;
+}
+
+.player-list {
+    padding: 1vw;
+    flex: 3;
+    max-height: 100%;
+    flex-shrink: 2;
+    min-width: 15vh;
+    font-size: smaller;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+}
+
+.player {
+    min-height: 0;
+    flex: 0 1 auto;
+    margin: .5vh 0;
+    padding: 1vh 1vh;
+}
+
+.player__content {
+    display: flex;
+    justify-content: space-between;
+}
+
+.player__name {
+    text-overflow: ellipsis;
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.player__hit-button {
+    border: 3px solid red;
+}
+
+.player__disconnected {
+    color: silver;
+}
+
+.player__answering {
+    background-color: lightgreen;
+}
+
+.player .guess {
+    flex: none;
+    position: relative;
+}
+
+.player .guess-popup {
+    position: absolute;
+    left: 10vw;
+    bottom: 0;
+}
+
+.game-zone {
+    flex: 7;
+    flex-grow: 15;
+    display: flex;
+    flex-direction: column;
+}
+
+.game-zone__header {
+    display: flex;
+    flex: 0 0 10vh;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-size: x-large;
+    font-size: calc((2vw + 1rem) / 2);
+}
+
+.game-zone__board {
+    flex: 0 1 70vh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.fragment {
+    font-size: calc((0.4vw + 0.4vh + 0.6vmin + 1rem) / 2);
+    margin-top: 1vh;
+    margin-bottom: 1vh;
+    padding-left: 1vw;
+    padding-right: 1vw;
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.image-fragment {
+    flex-grow: 10;
+    min-height: 20vh;
+}
+
+.image-fragment>img {
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+}
+
+.image-fragment>video {
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+}
+
+.game-zone__progress {
+    flex: 0 0 10vh;
+    display: flex;
+    align-items: center;
+    padding-left: 4vw;
+    padding-right: 4vw;
+}
+
+.game-zone__controls {
+    flex: 0 0 10vh;
+}
+
+.game-zone__wait {
+    flex: 1;
+}
+
+.center-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.table__taken-question {
+    color: silver;
+}
+
+.audio-fragment {
+    font-size: 7em;
+}

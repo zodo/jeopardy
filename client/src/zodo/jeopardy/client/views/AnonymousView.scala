@@ -13,14 +13,32 @@ class AnonymousView(val ctx: Context[AppTask, ViewState, ClientEvent]) {
   private val nameInputId = elementId()
 
   def render(): DocumentNode = optimize {
-    form(
-      input(nameInputId, `type` := "text", placeholder := "Your name"),
-      button("OK"),
-      event("submit")(access =>
-        for {
-          name <- access.valueOf(nameInputId)
-          _    <- access.publish(ClientEvent.Introduce(name))
-        } yield ()
+    div(
+      clazz := "center-container",
+      div(
+        clazz := "nes-container is-rounded",
+        form(
+          clazz := "nes-field login-form",
+          label(
+            `for` := "name_field",
+            "Your name"
+          ),
+          input(
+            nameInputId,
+            `type` := "text",
+            clazz := "nes-input"
+          ),
+          button(
+            clazz := "nes-btn is-success",
+            "OK"
+          ),
+          event("submit")(access =>
+            for {
+              name <- access.valueOf(nameInputId)
+              _    <- access.publish(ClientEvent.Introduce(name))
+            } yield ()
+          )
+        )
       )
     )
   }

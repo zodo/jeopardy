@@ -20,7 +20,7 @@ object PackModel {
 
   case class Theme(name: String, questions: Seq[Question]) extends WithId
 
-  case class Question(fragments: Seq[Fragment], answers: Answers, price: Int) extends WithId
+  case class Question(fragments: Seq[Fragment], answers: Answers, price: Int, theme: String) extends WithId
 
   case class Answers(
     correct: Seq[String],

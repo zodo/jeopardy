@@ -96,7 +96,7 @@ object GameActorListener {
           if (a.playerId == playerId) Some(AppealInitiated)
           else if (a.agree.contains(playerId)) Some(AppealAgree)
           else if (a.disagree.contains(playerId)) Some(AppealDisagree)
-          else None
+          else Some(AppealNotChosen)
       )
     case _ => event.copy(appeal = None)
   }

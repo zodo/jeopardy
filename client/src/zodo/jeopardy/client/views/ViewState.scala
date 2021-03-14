@@ -39,6 +39,12 @@ object ViewState {
       }
     }
 
+    val appealPlayerName = playerEvents.events
+      .find(_._2.appeal.contains(AppealInitiated))
+      .map(_._1)
+      .flatMap(playerId => players.find(_.id == playerId))
+      .map(_.name)
+
     def withPlayerEvent(id: PlayerId, map: PlayerEvent => PlayerEvent): InGame = {
       copy(playerEvents = playerEvents.withPlayerEvent(id, map))
     }
@@ -91,6 +97,7 @@ object ViewState {
   case class PlayerGuess(answer: String, isCorrect: Boolean)
 
   sealed trait AppealState
+  case object AppealNotChosen extends AppealState
   case object AppealAgree extends AppealState
   case object AppealDisagree extends AppealState
   case object AppealInitiated extends AppealState

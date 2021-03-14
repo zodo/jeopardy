@@ -12,6 +12,10 @@ p {
     margin: 0;
 }
 
+div {
+    border: 1px solid silver;
+}
+
 code {
     user-select: all;
 }
@@ -161,4 +165,35 @@ code {
 
 .audio-fragment {
     font-size: 7em;
+}
+
+.margin-top {
+    margin-top: 1em;
+}
+
+.game-zone__controls {
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hit-button {
+    flex: 1;
+    margin: 0 1rem;
+    align-self: stretch;
+}
+
+.answer-input {
+    margin-right: 2rem;
+    text-align: center;
+}
+
+.answer-form {
+    flex: 1;
+    display: flex;
+}
+
+.nes-progress {
+    height: 4vh;
 }

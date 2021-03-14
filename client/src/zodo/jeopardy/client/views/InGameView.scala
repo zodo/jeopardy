@@ -2,12 +2,11 @@ package zodo.jeopardy.client.views
 
 import korolev.Context
 import korolev.effect.Effect
-import levsha.dsl.html.div
 import levsha.events.EventPhase.AtTarget
 import zio.logging.log
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.{ClientEvent, JsCallback}
-import zodo.jeopardy.client.views.ViewState.PlayerState.ThinkingAboutAnswer
+import zodo.jeopardy.client.views.ViewState.PlayerState.{ChoosesQuestion, ThinkingAboutAnswer}
 import zodo.jeopardy.client.views.ViewState._
 import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
@@ -37,7 +36,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             `class` := "game-zone",
             stage match {
               case BeforeStart => renderWaitingForStart(gameId)
-              case s: Round    => renderInRound(s, countdown)
+              case s: Round    => renderInRound(s, countdown, state.me.canAppeal)
               case s: Question =>
                 renderQuestion(
                   hash,
@@ -69,36 +68,35 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                   canAnswer = state.me.canAnswer
                 )
               case s: Answer       => renderInAnswer(hash, s.model)
-              case s: Appeal       => renderAppeal(s.answer, s.model, state.me.canVoteAppeal)
+              case s: Appeal       => renderAppeal(s, state)
               case s: AppealResult => renderAppealResult(s.resolution)
-            },
-            if (state.me.canAppeal) {
-              button(
-                "Appeal!",
-                event("click")(_.publish(ClientEvent.StartAppeal))
-              )
-            } else void
+            }
           )
         )
       }
   }
 
   private def renderCountdown(c: Option[Countdown]) = optimize {
-    c match {
-      case Some(c) =>
-        div(
-          clazz := "game-zone__progress",
+    div(
+      clazz := "game-zone__progress",
+      c match {
+        case Some(c) =>
           progress(
             clazz := "nes-progress",
             max := c.max.toString,
             value := c.remaining.toString
           )
-        )
-      case None => void
-    }
+        case None =>
+          progress(
+            clazz := "nes-progress",
+            max := "1",
+            value := "0"
+          )
+      }
+    )
   }
 
-  private def renderPlayer(playerEvents: PlayerEvents)(info: PlayerInfo): DocumentNode = {
+  private def renderPlayer(playerEvents: PlayerEvents)(info: PlayerInfo): DocumentNode = optimize {
     val PlayerInfo(id, name, score, state, me, disconnected) = info
 
     val answering = if (state == ThinkingAboutAnswer) "player__answering" else ""
@@ -117,10 +115,22 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
         p(
           title := id,
           score.toString
-        )
+        ),
+        if (state == ChoosesQuestion)
+          a(
+            `class` := "nes-badge",
+            span(`class` := "is-primary", "A")
+          )
+        else void,
+        playerEvents.appeal(id) match {
+          case Some(AppealNotChosen) => i(`class` := "nes-icon is-medium")
+          case Some(AppealAgree)     => i(`class` := "nes-icon is-medium like")
+          case Some(AppealDisagree)  => i(`class` := "nes-icon is-medium like is-empty")
+          case _                     => void
+        }
       ),
       playerEvents.guess(id) match {
-        case Some(g) =>
+        case Some(g) if !g.isCorrect =>
           span(
             clazz := "guess",
             div(
@@ -131,13 +141,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               )
             )
           )
-        case None => void
-      },
-      playerEvents.appeal(id) match {
-        case Some(AppealInitiated) => div("Appeal!")
-        case Some(AppealAgree)     => div("I'm OK with appeal")
-        case Some(AppealDisagree)  => div("I'm not OK with appeal")
-        case None                  => void
+        case _ => void
       }
     )
   }
@@ -166,7 +170,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     )
   }
 
-  private def renderInRound(round: Round, c: Option[Countdown]): DocumentNode = {
+  private def renderInRound(round: Round, c: Option[Countdown], canAppeal: Boolean): DocumentNode = optimize {
     Seq(
       div(
         clazz := "game-zone__header",
@@ -193,7 +197,17 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
           )
         )
       ),
-      renderCountdown(c)
+      renderCountdown(c),
+      div(
+        `class` := "game-zone__controls",
+        if (canAppeal) {
+          button(
+            `class` := "hit-button nes-btn is-warning",
+            "APPEAL",
+            event("click")(_.publish(ClientEvent.StartAppeal))
+          )
+        } else void
+      )
     )
   }
 
@@ -258,16 +272,20 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
       renderCountdown(c),
       div(
         `class` := "game-zone__controls",
-        button(
-          if (!canHit) disabled else void,
-          backgroundColor @= (if (readyForHit) "red" else "green"),
-          autofocus := "true",
-          "I know!",
-          event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
-          event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
-          event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
-        ),
-        if (canAnswer) renderAnswerInput else void
+        if (canAnswer) {
+          renderAnswerInput
+        } else {
+          button(
+            `class` := s"hit-button nes-btn " +
+              s"${if (readyForHit && canHit) "is-error" else ""} " +
+              s"${if (!canHit) "is-disabled" else ""}",
+            autofocus := "true",
+            "I KNOW",
+            event("mousedown", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+            event("click", phase = AtTarget) { _.publish(ClientEvent.HitButton) },
+            event("touchstart", phase = AtTarget) { _.publish(ClientEvent.HitButton) }
+          )
+        }
       )
     )
   }
@@ -275,67 +293,140 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   private val answerInput = elementId()
 
   private def renderAnswerInput: DocumentNode = optimize {
-    div(
-      form(
-        input(
-          `type` := "text",
-          answerInput
+    form(
+      `class` := "answer-form",
+      input(
+        `class` := "answer-input nes-input",
+        `type` := "text",
+        answerInput
+      ),
+      button(
+        `type` := "submit",
+        `class` := "nes-btn",
+        "OK"
+      ),
+      event("submit") { access =>
+        for {
+          answer <- access.valueOf(answerInput)
+          _      <- access.publish(ClientEvent.GiveAnswer(answer))
+        } yield ()
+      }
+    )
+  }
+
+  private def renderInAnswer(hash: String, answer: PackModel.Answers) = optimize {
+    Seq(
+      div(
+        clazz := "game-zone__header",
+        ""
+      ),
+      div(
+        clazz := "game-zone__board",
+        answer.correct.headOption match {
+          case Some(text) =>
+            div(
+              `class` := "fragment",
+              p(text)
+            )
+          case None => void
+        },
+        answer.additional.map {
+          case Text(value) =>
+            div(
+              `class` := "fragment",
+              p(value)
+            )
+          case Image(url) =>
+            div(
+              `class` := "fragment image-fragment",
+              img(
+                src := s"/media/$hash/Images/${url.drop(1)}"
+              )
+            )
+          case Audio(url) =>
+            div(
+              `class` := "fragment audio-fragment",
+              div("♪"),
+              audio(
+                src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                autoplay := "autoplay"
+              )
+            )
+          case Video(url) =>
+            div(
+              `class` := "fragment image-fragment",
+              video(
+                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                autoplay := "autoplay"
+              )
+            )
+        }
+      ),
+      renderCountdown(None),
+      div(`class` := "game-zone__controls")
+    )
+  }
+
+  private def renderAppeal(s: Appeal, state: InGame) = optimize {
+    Seq(
+      div(
+        clazz := "game-zone__header",
+        s"${state.appealPlayerName.getOrElse("")} appeals"
+      ),
+      div(
+        clazz := "game-zone__board",
+        div(
+          clazz := "fragment",
+          s"Answer: ${s.answer}"
+        ),
+        div(
+          clazz := "fragment",
+          p(
+            "Correct answers:"
+          ),
+          ul(s.model.answers.correct.map(li(_)))
+        ),
+        if (s.model.answers.incorrect.nonEmpty) {
+          div(
+            clazz := "fragment",
+            p(
+              "Incorrect answers:"
+            ),
+            ul(s.model.answers.incorrect.map(li(_)))
+          )
+        } else void
+      ),
+      renderCountdown(state.countdown),
+      div(
+        clazz := "game-zone__controls",
+        button(
+          if (!state.me.canVoteAppeal) disabled else void,
+          clazz := s"hit-button nes-btn ${if (state.me.canVoteAppeal) "is-success" else "is-disabled"}",
+          "AGREE",
+          event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = true)))
         ),
         button(
-          "Submit answer"
-        ),
-        event("submit") { access =>
-          for {
-            answer <- access.valueOf(answerInput)
-            _      <- access.publish(ClientEvent.GiveAnswer(answer))
-          } yield ()
-        }
+          if (!state.me.canVoteAppeal) disabled else void,
+          clazz := s"hit-button nes-btn ${if (state.me.canVoteAppeal) "is-error" else "is-disabled"}",
+          "DISAGREE",
+          event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = false)))
+        )
       )
     )
   }
 
-  private def renderInAnswer(hash: String, answer: PackModel.Answers) = {
-    div(
-      h2(answer.correct.head)
-    )
-  }
-
-  private def renderAppeal(answer: String, model: PackModel.Question, canVote: Boolean) = {
-    div(
-      h2("Appeal"),
-      div("Question: "),
-      model.fragments.collect {
-        case Text(value) => div(value)
-      },
-      div(s"Answers was: $answer"),
-      div(s"Correct answers: "),
-      ul(
-        model.answers.correct.map(li(_))
+  private def renderAppealResult(resolution: Boolean) = optimize {
+    Seq(
+      div(clazz := "game-zone__header"),
+      div(
+        clazz := "game-zone__board",
+        div(
+          clazz := "fragment",
+          s"Appeal ${if (resolution) "approved" else "not approved"}"
+        )
       ),
-      if (model.answers.incorrect.nonEmpty) {
-        div(
-          "incorrect answers",
-          ul(
-            model.answers.incorrect.map(li(_))
-          )
-        )
-      } else void,
-      if (canVote) {
-        div(
-          button(
-            "Agree",
-            event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = true)))
-          ),
-          button(
-            "Disagree",
-            event("click")(_.publish(ClientEvent.ResolveAppeal(resolution = false)))
-          )
-        )
-      } else void
+      renderCountdown(None),
+      div(clazz := "game-zone__controls")
     )
-  }
-
-  private def renderAppealResult(resolution: Boolean) = {
-    h2(s"Appeal ${if (resolution) "approved" else "not approved"}")
   }
 }

@@ -20,21 +20,27 @@ class AuthorizedView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit
 
   def render(s: ViewState.Authorized): DocumentNode = optimize {
     div(
-      h2(s"Hello ${s.name}!"),
+      clazz := "center-container",
       div(
-        h3("Either create a new game"),
-        uploader(()) { case (access, Uploader.FileUploaded(hash, pack)) =>
-          access.publish(ClientEvent.UploadFile(hash, pack))
+        uploader(()) {
+          case (access, Uploader.FileUploaded(hash, pack)) =>
+            access.publish(ClientEvent.UploadFile(hash, pack))
         },
-        h3("Or join the existing"),
-        form(
-          input(gameInputId, `type` := "text", placeholder := "Game ID"),
-          button("Join"),
-          event("submit")(access =>
-            for {
-              gameId <- access.valueOf(gameInputId)
-              _      <- access.publish(ClientEvent.EnterGame(gameId))
-            } yield ()
+        div(
+          clazz := "nes-container with-title is-centered margin-top",
+          p(
+            clazz := "title",
+            "Enter game ID"
+          ),
+          form(
+            input(gameInputId, `class` := "nes-input", `type` := "text"),
+            button(`class` := "nes-btn is-success", "Join"),
+            event("submit")(access =>
+              for {
+                gameId <- access.valueOf(gameInputId)
+                _      <- access.publish(ClientEvent.EnterGame(gameId))
+              } yield ()
+            )
           )
         ),
         s.errorMessage match {

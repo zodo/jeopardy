@@ -26,35 +26,50 @@ class Uploader(implicit eff: Effect[AppTask])
 
   private val fileInput = elementId()
 
-  def render(props: Unit, state: State) = {
+  def render(props: Unit, state: State) = optimize {
     div(
-      input(
-        `type` := "file",
-        accept := ".siq",
-        fileInput
+      clazz := "nes-container with-title is-centered",
+      p(
+        clazz := "title",
+        "Upload pack"
       ),
-      state.stage match {
-        case Waiting => void
-        case Uploading =>
-          div(
-            p("Uploading "),
-            state.percentage.map(per => p(s"${per.toString}%"))
+      form(
+        label(
+          clazz := "nes-btn",
+          span(
+            "Select file"
+          ),
+          input(
+            `type` := "file",
+            accept := ".siq",
+            fileInput
           )
-        case Unpacking =>
-          div("Unpacking...")
-        case UnpackError(message) =>
-          div(
-            backgroundColor @= "red",
-            message
-          )
-      },
-      button(
-        "Upload",
+        ),
         state.stage match {
-          case Waiting | UnpackError(_) => void
-          case _                        => disabled
+          case Waiting => void
+          case Uploading =>
+            div(
+              p("Uploading "),
+              state.percentage.map(per => p(s"${per.toString}%"))
+            )
+          case Unpacking =>
+            div("Unpacking...")
+          case UnpackError(message) =>
+            div(
+              backgroundColor @= "red",
+              message
+            )
         },
-        event("click")(onUploadClick)
+        button(
+          `type` := "submit",
+          clazz := "nes-btn is-success",
+          "Upload",
+          state.stage match {
+            case Waiting | UnpackError(_) => void
+            case _                        => disabled
+          },
+          event("click")(onUploadClick)
+        )
       )
     )
   }
@@ -67,11 +82,12 @@ class Uploader(implicit eff: Effect[AppTask])
         size = handler.size
         path = Paths.get(config.packContentPath, handler.fileName)
         result <- data
-          .over(0L) { case (acc, chunk) =>
-            val loaded = chunk.fold(acc)(_.length + acc)
-            access
-              .transition(_.copy(percentage = Try((loaded / size * 100).toInt).toOption))
-              .as(loaded)
+          .over(0L) {
+            case (acc, chunk) =>
+              val loaded = chunk.fold(acc)(_.length + acc)
+              access
+                .transition(_.copy(percentage = Try((loaded / size * 100).toInt).toOption))
+                .as(loaded)
           }
           .to(FileIO.write(path))
           .as(path)

@@ -30,7 +30,7 @@ class RootView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit eff: 
       case RedirectToGame(id) =>
         p(
           "Redirecting...",
-          delay(1.seconds)(_.publish(ClientEvent.EnterGame(id)))
+          delay(100.milliseconds)(_.publish(ClientEvent.EnterGame(id)))
         )
       case s: ErrorMessage => errorMessageView.render(s)
       case Anonymous       => anonymousView.render()

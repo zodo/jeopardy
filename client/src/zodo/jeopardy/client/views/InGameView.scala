@@ -245,7 +245,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                   log.debug("Image ended!") *>
                     access.publish(ClientEvent.FinishQuestionReading(question.id))
                 },
-                src := s"/media/$hash/Images/${url.drop(1)}"
+                src := Urls.imageUrl(hash, url)
               )
             )
           case Audio(url) =>
@@ -254,7 +254,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               div("♪"),
               audio(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                src := Urls.audioUrl(hash, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -263,7 +263,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               `class` := "fragment image-fragment",
               video(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                src := Urls.videoUrl(hash, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -340,7 +340,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               img(
-                src := s"/media/$hash/Images/${url.drop(1)}"
+                src := Urls.imageUrl(hash, url)
               )
             )
           case Audio(url) =>
@@ -348,7 +348,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               `class` := "fragment audio-fragment",
               div("♪"),
               audio(
-                src := s"/media/$hash/Audio/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                src := Urls.audioUrl(hash, url),
                 autoplay := "autoplay"
               )
             )
@@ -356,7 +356,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               video(
-                src := s"/media/$hash/Video/${URLEncoder.encode(url.drop(1), "UTF-8")}",
+                src := Urls.videoUrl(hash, url),
                 autoplay := "autoplay"
               )
             )

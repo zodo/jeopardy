@@ -32,7 +32,7 @@ object PackModel {
   object Fragment {
     case class Text(value: String) extends Fragment
     case class Image(url: String) extends Fragment
-    case class Audio(url: String) extends Fragment
-    case class Video(url: String) extends Fragment
+    case class Audio(url: String, time: Option[Int]) extends Fragment
+    case class Video(url: String, time: Option[Int]) extends Fragment
   }
 }

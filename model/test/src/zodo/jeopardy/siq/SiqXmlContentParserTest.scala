@@ -17,7 +17,7 @@ object SiqXmlContentParserTest extends TestSuite {
                 <atom type="image">@question.jpg</atom>
                 <atom type="video">@question.mp4</atom>
                 <atom type="marker" />
-                <atom type="voice">@answer.mp3</atom>
+                <atom type="voice" time="12">@answer.mp3</atom>
                 <atom type="image">@answer.jpg</atom>
               </scenario>
               <right>
@@ -37,13 +37,13 @@ object SiqXmlContentParserTest extends TestSuite {
             Fragment.Text("question 2"),
             Fragment.Text("question 3"),
             Fragment.Image("@question.jpg"),
-            Fragment.Video("@question.mp4")
+            Fragment.Video("@question.mp4", None)
           ),
           Answers(
             Seq("answer 1", "answer 2"),
             Seq("wrong 1"),
             Seq(
-              Fragment.Audio("@answer.mp3"),
+              Fragment.Audio("@answer.mp3", Some(12)),
               Fragment.Image("@answer.jpg")
             )
           ),

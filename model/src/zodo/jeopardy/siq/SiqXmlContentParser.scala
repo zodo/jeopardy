@@ -41,10 +41,14 @@ object SiqXmlContentParser {
     )
   }
 
-  private def mapAtom(a: NodeSeq): PackModel.Fragment = a \@ "type" match {
-    case "say" | "text" | "" => PackModel.Fragment.Text(a.text)
-    case "image"             => PackModel.Fragment.Image(a.text)
-    case "voice"             => PackModel.Fragment.Audio(a.text)
-    case "video"             => PackModel.Fragment.Video(a.text)
+  private def mapAtom(a: NodeSeq): PackModel.Fragment = {
+    val time = (a \\ "@time").headOption.flatMap(_.text.toIntOption)
+
+    a \@ "type" match {
+      case "say" | "text" | "" => PackModel.Fragment.Text(a.text)
+      case "image"             => PackModel.Fragment.Image(a.text)
+      case "voice"             => PackModel.Fragment.Audio(a.text, time)
+      case "video"             => PackModel.Fragment.Video(a.text, time)
+    }
   }
 }

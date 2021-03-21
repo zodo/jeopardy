@@ -247,19 +247,35 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                 src := Urls.imageUrl(packMetaInfo, url)
               )
             )
-          case Audio(url) =>
+          case Audio(url, time) =>
             div(
               `class` := "fragment audio-fragment",
               div("♪"),
+              time match {
+                case Some(time) =>
+                  delay(time.seconds) { access =>
+                    log.debug("Audio ended by timer!") *>
+                      access.publish(ClientEvent.FinishQuestionReading(question.id))
+                  }
+                case None => void
+              },
               audio(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
                 src := Urls.audioUrl(packMetaInfo, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
-          case Video(url) =>
+          case Video(url, time) =>
             div(
               `class` := "fragment image-fragment",
+              time match {
+                case Some(time) =>
+                  delay(time.seconds) { access =>
+                    log.debug("Video ended by timer!") *>
+                      access.publish(ClientEvent.FinishQuestionReading(question.id))
+                  }
+                case None => void
+              },
               video(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
                 src := Urls.videoUrl(packMetaInfo, url),
@@ -342,7 +358,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                 src := Urls.imageUrl(packMetaInfo, url)
               )
             )
-          case Audio(url) =>
+          case Audio(url, _) =>
             div(
               `class` := "fragment audio-fragment",
               div("♪"),
@@ -351,7 +367,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                 autoplay := "autoplay"
               )
             )
-          case Video(url) =>
+          case Video(url, _) =>
             div(
               `class` := "fragment image-fragment",
               video(

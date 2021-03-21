@@ -48,7 +48,7 @@ object Entrypoint extends App {
 
     httpApp = Router[AppTask](
       "/" -> appRoute,
-      "/media" -> fileRoute
+      "/pack" -> fileRoute
     ).orNotFound
 
     _ <- ZIO.runtime[AppEnv].flatMap { implicit rts =>

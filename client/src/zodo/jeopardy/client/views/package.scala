@@ -12,19 +12,13 @@ package object views {
   type DocumentNode = Document.Node[Context.Binding[AppTask, ViewState, ClientEvent]]
 
   object Urls {
-    def imageUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Images", link)
-
-    def videoUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Video", link)
-
-    def audioUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Audio", link)
-
-    private def resourceUrl(packMetaInfo: PackMetaInfo, dir: String, link: String) = {
+    def mediaUrl(packMetaInfo: PackMetaInfo, link: String) = {
       if (link.startsWith("@")) {
         val fileName = link.drop(1)
 
         findMapping(packMetaInfo.mediaMapping, fileName) match {
-          case Some(targetFileName) => s"/media/${packMetaInfo.hash}/$dir/$targetFileName"
-          case None                 => s"/media/404/$link"
+          case Some(targetFileName) => s"/pack/${packMetaInfo.hash}/media/$targetFileName"
+          case None                 => s"/pack/404/$link"
         }
       } else {
         link

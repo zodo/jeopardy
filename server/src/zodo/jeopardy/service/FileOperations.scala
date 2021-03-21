@@ -1,9 +1,11 @@
 package zodo.jeopardy.service
 
 import net.lingala.zip4j.ZipFile
+import upickle.default._
 import zio._
 import zio.blocking._
 import zio.stream.{ZSink, ZStream}
+import zodo.jeopardy.model.PackMetaInfo.MediaMapping
 import zodo.jeopardy.model.{PackMetaInfo, PackModel}
 import zodo.jeopardy.siq.SiqXmlContentParser
 
@@ -11,11 +13,8 @@ import java.io.File
 import java.nio.file.{Files, Path}
 import java.security.MessageDigest
 import java.util.UUID
-import scala.jdk.Accumulator
-import scala.jdk.StreamConverters.StreamHasToScala
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.xml.XML
-import upickle.default._
-import zodo.jeopardy.model.PackMetaInfo.MediaMapping
 
 object FileOperations {
 
@@ -44,13 +43,41 @@ object FileOperations {
     ZStream.fromFile(path).run(md5HashSink)
   }
 
-  private def unpackZip(zipFile: Path, targetDirectory: Path) = {
-    for {
-      _       <- effectBlocking(Files.createDirectory(targetDirectory))
-      zipFile <- Task(new ZipFile(new File(zipFile.toUri)))
-      _       <- effectBlocking(zipFile.extractAll(targetDirectory.toString))
-      _       <- Task(generateMediaMapping(targetDirectory))
-    } yield ()
+  private def unpackZip(zipFile: Path, targetDirectory: Path) = Task {
+    Files.createDirectory(targetDirectory)
+
+    val zip = new ZipFile(zipFile.toFile)
+
+    val files = zip.getFileHeaders.asScala
+      .map(header => {
+        val fileName = header.getFileName
+
+        if (Seq("Audio", "Video", "Images").exists(fileName.startsWith)) {
+          // resource file, rename on unpack
+          val extension = fileName.split('.').last
+          val newName = UUID.randomUUID().toString + "." + extension
+
+          (header, Some(newName))
+        } else {
+          (header, None)
+        }
+      })
+
+    val target = targetDirectory.toString
+
+    files.foreach {
+      case (header, Some(name)) => zip.extractFile(header, target, "media/" + name)
+      case (header, None)       => zip.extractFile(header, target)
+    }
+
+    val entries = files.collect {
+      case (header, Some(name)) => header.getFileName.split("/").last -> name
+    }.toMap
+
+    val mapping = MediaMapping(entries)
+    val mappingPath = targetDirectory.resolve(mediaMappingFile)
+
+    Files.write(mappingPath, writeToByteArray(mapping, indent = 2))
   }
 
   private def readAndParsePack(targetDirectory: Path) = {
@@ -59,33 +86,5 @@ object FileOperations {
       xml         <- Task(XML.loadFile(new File(contentFile.toUri)))
       parsed      <- Task(SiqXmlContentParser.convert(xml))
     } yield parsed
-  }
-
-  private def generateMediaMapping(path: Path): Unit = {
-    val entries = Seq("Audio", "Video", "Images")
-      .flatMap(mediaDirName => {
-        val mediaDir = path.resolve(mediaDirName)
-        if (Files.exists(mediaDir) && Files.isDirectory(mediaDir)) {
-          Files
-            .list(mediaDir)
-            .toScala(Accumulator)
-            .map(file => {
-              val sourceName = file.getFileName.toString
-              val extension = sourceName.split('.').last
-              val newName = UUID.randomUUID().toString + "." + extension
-
-              Files.move(file, file.resolveSibling(newName))
-              (sourceName, newName)
-            })
-        } else {
-          Seq()
-        }
-      })
-      .toMap
-
-    val mapping = MediaMapping(entries)
-    val mappingPath = path.resolve(mediaMappingFile)
-
-    Files.write(mappingPath, writeToByteArray(mapping, indent = 2))
   }
 }

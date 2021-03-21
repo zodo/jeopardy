@@ -244,7 +244,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                   log.debug("Image ended!") *>
                     access.publish(ClientEvent.FinishQuestionReading(question.id))
                 },
-                src := Urls.imageUrl(packMetaInfo, url)
+                src := Urls.mediaUrl(packMetaInfo, url)
               )
             )
           case Audio(url, time) =>
@@ -261,7 +261,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               },
               audio(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := Urls.audioUrl(packMetaInfo, url),
+                src := Urls.mediaUrl(packMetaInfo, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -278,7 +278,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               },
               video(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := Urls.videoUrl(packMetaInfo, url),
+                src := Urls.mediaUrl(packMetaInfo, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -355,7 +355,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               img(
-                src := Urls.imageUrl(packMetaInfo, url)
+                src := Urls.mediaUrl(packMetaInfo, url)
               )
             )
           case Audio(url, _) =>
@@ -363,7 +363,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               `class` := "fragment audio-fragment",
               div("♪"),
               audio(
-                src := Urls.audioUrl(packMetaInfo, url),
+                src := Urls.mediaUrl(packMetaInfo, url),
                 autoplay := "autoplay"
               )
             )
@@ -371,7 +371,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               video(
-                src := Urls.videoUrl(packMetaInfo, url),
+                src := Urls.mediaUrl(packMetaInfo, url),
                 autoplay := "autoplay"
               )
             )

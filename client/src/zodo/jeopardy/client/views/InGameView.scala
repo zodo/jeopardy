@@ -8,11 +8,10 @@ import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.{ClientEvent, JsCallback}
 import zodo.jeopardy.client.views.ViewState.PlayerState.{ChoosesQuestion, ThinkingAboutAnswer}
 import zodo.jeopardy.client.views.ViewState._
-import zodo.jeopardy.model.PackModel
 import zodo.jeopardy.model.PackModel.Fragment.{Audio, Image, Text, Video}
 import zodo.jeopardy.model.StageSnapshot._
+import zodo.jeopardy.model.{PackMetaInfo, PackModel}
 
-import java.net.URLEncoder
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
@@ -23,7 +22,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   import html._
 
   def render(inGame: ViewState.InGame): DocumentNode = inGame match {
-    case state @ ViewState.InGame(gameId, hash, players, playerEvents, stage, countdown) =>
+    case state @ ViewState.InGame(gameId, packMetaInfo, players, playerEvents, stage, countdown) =>
       optimize {
         div(
           `class` := "container",
@@ -39,7 +38,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               case s: Round    => renderInRound(s, countdown, state.me.canAppeal)
               case s: Question =>
                 renderQuestion(
-                  hash,
+                  packMetaInfo,
                   s.model,
                   countdown,
                   firstTime = true,
@@ -49,7 +48,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                 )
               case s: ReadyForHit =>
                 renderQuestion(
-                  hash,
+                  packMetaInfo,
                   s.model,
                   countdown,
                   firstTime = false,
@@ -59,7 +58,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                 )
               case s: AnswerAttempt =>
                 renderQuestion(
-                  hash,
+                  packMetaInfo,
                   s.model,
                   countdown,
                   firstTime = false,
@@ -67,7 +66,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                   canHit = false,
                   canAnswer = state.me.canAnswer
                 )
-              case s: Answer       => renderInAnswer(hash, s.model)
+              case s: Answer       => renderInAnswer(packMetaInfo, s.model)
               case s: Appeal       => renderAppeal(s, state)
               case s: AppealResult => renderAppealResult(s.resolution)
             }
@@ -212,7 +211,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
   }
 
   private def renderQuestion(
-    hash: String,
+    packMetaInfo: PackMetaInfo,
     question: PackModel.Question,
     c: Option[Countdown],
     firstTime: Boolean,
@@ -245,7 +244,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
                   log.debug("Image ended!") *>
                     access.publish(ClientEvent.FinishQuestionReading(question.id))
                 },
-                src := Urls.imageUrl(hash, url)
+                src := Urls.imageUrl(packMetaInfo, url)
               )
             )
           case Audio(url) =>
@@ -254,7 +253,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               div("♪"),
               audio(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := Urls.audioUrl(hash, url),
+                src := Urls.audioUrl(packMetaInfo, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -263,7 +262,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               `class` := "fragment image-fragment",
               video(
                 AttrDef("onEnded") := JsCallback.MediaFinished.call(question.id),
-                src := Urls.videoUrl(hash, url),
+                src := Urls.videoUrl(packMetaInfo, url),
                 if (firstTime) autoplay := "autoplay" else void
               )
             )
@@ -314,7 +313,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
     )
   }
 
-  private def renderInAnswer(hash: String, answer: PackModel.Answers) = optimize {
+  private def renderInAnswer(packMetaInfo: PackMetaInfo, answer: PackModel.Answers) = optimize {
     Seq(
       div(
         clazz := "game-zone__header",
@@ -340,7 +339,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               img(
-                src := Urls.imageUrl(hash, url)
+                src := Urls.imageUrl(packMetaInfo, url)
               )
             )
           case Audio(url) =>
@@ -348,7 +347,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
               `class` := "fragment audio-fragment",
               div("♪"),
               audio(
-                src := Urls.audioUrl(hash, url),
+                src := Urls.audioUrl(packMetaInfo, url),
                 autoplay := "autoplay"
               )
             )
@@ -356,7 +355,7 @@ class InGameView(val ctx: Context.Scope[AppTask, ViewState, InGame, ClientEvent]
             div(
               `class` := "fragment image-fragment",
               video(
-                src := Urls.videoUrl(hash, url),
+                src := Urls.videoUrl(packMetaInfo, url),
                 autoplay := "autoplay"
               )
             )

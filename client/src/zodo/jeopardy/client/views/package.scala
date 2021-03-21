@@ -3,6 +3,8 @@ import korolev.Context
 import levsha.Document
 import zodo.jeopardy.client.environment.AppTask
 import zodo.jeopardy.client.events.ClientEvent
+import zodo.jeopardy.model.PackMetaInfo
+import zodo.jeopardy.model.PackMetaInfo.MediaMapping
 
 import java.net.URLEncoder
 
@@ -10,19 +12,53 @@ package object views {
   type DocumentNode = Document.Node[Context.Binding[AppTask, ViewState, ClientEvent]]
 
   object Urls {
-    def imageUrl(hash: String, link: String) = resourceUrl(hash, "Images", link)
+    def imageUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Images", link)
 
-    def videoUrl(hash: String, link: String) = resourceUrl(hash, "Video", link)
+    def videoUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Video", link)
 
-    def audioUrl(hash: String, link: String) = resourceUrl(hash, "Audio", link)
+    def audioUrl(packMetaInfo: PackMetaInfo, link: String) = resourceUrl(packMetaInfo, "Audio", link)
 
-    private def resourceUrl(hash: String, dir: String, link: String) = {
+    private def resourceUrl(packMetaInfo: PackMetaInfo, dir: String, link: String) = {
       if (link.startsWith("@")) {
-        val preparedLink = URLEncoder.encode(link.drop(1), "UTF-8").replace("+", "%20")
-        s"/media/$hash/$dir/$preparedLink"
+        val fileName = link.drop(1)
+
+        findMapping(packMetaInfo.mediaMapping, fileName) match {
+          case Some(targetFileName) => s"/media/${packMetaInfo.hash}/$dir/$targetFileName"
+          case None                 => s"/media/404/$link"
+        }
       } else {
         link
       }
+    }
+
+    private def findMapping(mapping: MediaMapping, fileName: String): Option[String] = {
+      lazy val encoded = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20")
+
+      lazy val dotnet40encoded = encoded
+        .replace("%23", "#")
+        .replace("%5B", "[")
+        .replace("%5D", "]")
+        .replace("%21", "!")
+        .replace("%27", "'")
+        .replace("%28", "(")
+        .replace("%29", ")")
+        .replace("%2A", "*")
+
+      lazy val additionalDotnet40encoded = dotnet40encoded
+        .replace("%2C", ",")
+
+      val get = mapping.entries.get _
+
+      get(fileName)
+        .orElse(get(encoded))
+        .orElse(get(dotnet40encoded))
+        .orElse(get(additionalDotnet40encoded))
+        .orElse {
+          println(
+            s"Cant find mapping for \nfile $fileName\nenc $encoded\nnet45 $dotnet40encoded\nadd $additionalDotnet40encoded"
+          )
+          None
+        }
     }
   }
 

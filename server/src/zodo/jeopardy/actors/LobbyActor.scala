@@ -24,18 +24,18 @@ object LobbyActor {
   val handler = new Actor.Stateful[Env, State, LobbyCommand] {
     override def receive[A](state: State, msg: LobbyCommand[A], context: Context): RIO[Env, (State, A)] =
       msg match {
-        case NewGame(hash, pack) =>
+        case NewGame(meta, model) =>
           for {
-            _    <- log.info(s"LobbyActor <- NewGame($hash)")
+            _    <- log.info(s"LobbyActor <- NewGame(${meta.hash})")
             id   <- randomGameId
             self <- context.self[LobbyCommand]
             gameActor <- context.make(
               s"game-$id",
               actors.Supervisor.none,
-              GameActor.initState(id, pack),
+              GameActor.initState(id, model),
               GameActor.handler(self)
             )
-            entry = GameEntry(id, hash, gameActor)
+            entry = GameEntry(id, meta, gameActor)
           } yield state.copy(entries = state.entries.updated(id, entry)) -> entry
         case GetGameEntry(id) =>
           log

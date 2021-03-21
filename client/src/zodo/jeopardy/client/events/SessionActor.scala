@@ -7,7 +7,6 @@ import zodo.jeopardy.actors.{GameActorRef, LobbyActorRef}
 import zodo.jeopardy.client.environment.AppEnv
 import zodo.jeopardy.client.views.ViewState
 import zodo.jeopardy.client.views.ViewState.InGame
-import zodo.jeopardy.model.StageSnapshot.BeforeStart
 import zodo.jeopardy.model.{GameCommand, GameEntry, LobbyCommand, PlayerId}
 
 object SessionActor {
@@ -46,9 +45,9 @@ object SessionActor {
               _    <- game ? GameCommand.DisconnectPlayer(playerId)
             } yield ()).ignore.as(state)
 
-          case (_, ClientEvent.UploadFile(hash, pack)) =>
+          case (_, ClientEvent.UploadFile(meta, model)) =>
             for {
-              GameEntry(id, _, _)                     <- lobby ? LobbyCommand.NewGame(hash, pack)
+              GameEntry(id, _, _)                     <- lobby ? LobbyCommand.NewGame(meta, model)
               self: ActorRef[ParametrizedClientEvent] <- context.self
               _                                       <- self ! ClientEvent.EnterGame(id)
             } yield state
@@ -64,7 +63,7 @@ object SessionActor {
               _         <- log.debug(s"entering game $gameId as ${playerName}")
               maybeGame <- lobby ? LobbyCommand.GetGameEntry(gameId)
               newState <- maybeGame match {
-                case Some(GameEntry(gameId, packId, game)) =>
+                case Some(GameEntry(gameId, packMetaInfo, game)) =>
                   for {
                     stateUpdater <- context.make(
                       s"state-updater",
@@ -78,7 +77,7 @@ object SessionActor {
                       (),
                       GameActorListener.handler(playerName, playerId, stateUpdater)
                     )
-                    _ <- access.transition(_ => InGame(gameId, packId))
+                    _ <- access.transition(_ => InGame(gameId, packMetaInfo))
                     _ <- game ! GameCommand.AddPlayer(playerId, playerName, gameListener)
                   } yield state.copy(game = Some(game))
                 case None =>

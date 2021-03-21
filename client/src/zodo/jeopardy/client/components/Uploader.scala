@@ -11,7 +11,7 @@ import zodo.jeopardy.client.AppConfig.ServerConfig
 import zodo.jeopardy.client.components.Uploader.UploadStage._
 import zodo.jeopardy.client.components.Uploader.{FileUploaded, State}
 import zodo.jeopardy.client.environment.AppTask
-import zodo.jeopardy.model.PackModel
+import zodo.jeopardy.model.{PackMetaInfo, PackModel}
 import zodo.jeopardy.service.FileOperations
 
 import java.nio.file.Paths
@@ -103,7 +103,7 @@ class Uploader(implicit eff: Effect[AppTask])
 
       _        <- access.transition(_.copy(stage = Unpacking, percentage = None))
       fileInfo <- FileOperations.unpackFile(downloadedFilePath)
-      _        <- access.publish(FileUploaded(fileInfo.hash, fileInfo.pack))
+      _        <- access.publish(FileUploaded(fileInfo.meta, fileInfo.model))
     } yield ())
       .catchAll(err => access.transition(_ => State(UnpackError(err.toString), None)))
   }
@@ -111,7 +111,7 @@ class Uploader(implicit eff: Effect[AppTask])
 
 object Uploader {
 
-  case class FileUploaded(hash: String, pack: PackModel.Pack)
+  case class FileUploaded(meta: PackMetaInfo, model: PackModel.Pack)
 
   case class State(stage: UploadStage, percentage: Option[Int])
 

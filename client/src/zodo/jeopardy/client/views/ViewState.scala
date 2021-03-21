@@ -1,7 +1,7 @@
 package zodo.jeopardy.client.views
 
 import zodo.jeopardy.model.StageSnapshot.{AnswerAttempt, BeforeStart, Round}
-import zodo.jeopardy.model.{PlayerId, StageSnapshot}
+import zodo.jeopardy.model.{PackMetaInfo, PlayerId, StageSnapshot}
 
 sealed trait ViewState
 object ViewState {
@@ -11,7 +11,7 @@ object ViewState {
   case class RedirectToGame(gameId: String) extends ViewState
   case class InGame(
     id: String,
-    packId: String,
+    packMetaInfo: PackMetaInfo,
     players: Seq[PlayerInfo] = Nil,
     playerEvents: PlayerEvents = PlayerEvents(Map()),
     stage: StageSnapshot = BeforeStart,

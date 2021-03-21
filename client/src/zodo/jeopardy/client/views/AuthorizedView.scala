@@ -23,8 +23,8 @@ class AuthorizedView(val ctx: Context[AppTask, ViewState, ClientEvent])(implicit
       clazz := "center-container",
       div(
         uploader(()) {
-          case (access, Uploader.FileUploaded(hash, pack)) =>
-            access.publish(ClientEvent.UploadFile(hash, pack))
+          case (access, Uploader.FileUploaded(meta, model)) =>
+            access.publish(ClientEvent.UploadFile(meta, model))
         },
         div(
           clazz := "nes-container with-title is-centered margin-top",

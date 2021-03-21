@@ -23,9 +23,9 @@ object server extends BaseScalaModule {
   override def ivyDeps = Agg(
     ivy"dev.zio::zio:1.0.4",
     ivy"dev.zio::zio-actors:0.0.9",
-    ivy"dev.zio::zio-nio:1.0.0-RC10",
     ivy"dev.zio::zio-logging-slf4j:0.5.6",
     ivy"net.lingala.zip4j:zip4j:2.6.4",
+    ivy"com.lihaoyi::upickle:1.3.8",
     ivy"org.slf4j:slf4j-simple:1.7.30"
   )
 
